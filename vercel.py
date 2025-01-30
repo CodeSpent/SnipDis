@@ -30,5 +30,5 @@ async def handler(_request, err: Exception):
 
 @app.load
 @discohook.command.slash(name="Snip", description="Snip snip")
-async def snip(i: discohook.Interaction, url: str, channel: discord.ForumChannel):
+async def snip(i: discohook.Interaction, url: str):
     await i.response.send(url)
