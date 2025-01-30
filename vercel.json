@@ -1,7 +1,7 @@
 {
   "builds": [
     {
-      "src": "vercel.py",
+      "src": "testing.py",
       "use": "@imptype/vercel-python@4.3.35"
     }
   ],
