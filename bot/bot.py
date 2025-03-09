@@ -66,7 +66,7 @@ async def create_forum_thread(channel: discord.ForumChannel, title: str, url: st
         raise Exception(f"Error creating thread: {str(e)}")
 
 
-@bot.slash_command(description="Fetch a URL's title and post it in a forum channel as a thread.")
+@bot.slash_command(description="Snip a webpage & post it to a Forum channel.")
 async def snip(ctx: discord.ApplicationContext, url: str, channel: discord.ForumChannel, title = None):
     url = validate_and_normalize_url(url)
     if not url:
