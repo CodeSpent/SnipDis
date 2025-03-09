@@ -96,30 +96,6 @@ async def snip(ctx: discord.ApplicationContext, url: str, channel: discord.Forum
             f"❌ An unexpected error occurred: {str(e)}", ephemeral=True
         )
 
-@bot.slash_command(description="Set the bot's nickname in the current server.")
-@commands.has_permissions(manage_nicknames=True)
-async def set_nickname(ctx: discord.ApplicationContext, nickname: str):
-    try:
-        await ctx.guild.me.edit(nick=nickname)
-        await ctx.respond(f"✅ Nickname successfully changed to **{nickname}**.")
-    except Exception as e:
-        await ctx.respond(f"❌ Failed to change nickname: {str(e)}")
-
-
-@bot.slash_command(description="Set the bot's avatar via an image URL.")
-@commands.has_permissions(administrator=True)
-async def set_avatar(ctx: discord.ApplicationContext, avatar_url: str):
-    try:
-        response = requests.get(avatar_url)
-        response.raise_for_status()
-        image_data = response.content
-        await bot.user.edit(avatar=image_data)
-        await ctx.respond("✅ Avatar successfully updated!")
-    except requests.RequestException:
-        await ctx.respond("❌ Failed to fetch avatar from the provided URL. Ensure it is a valid image link.")
-    except Exception as e:
-        await ctx.respond(f"❌ Failed to update avatar: {str(e)}")
-
 
 if __name__ == "__main__":
     try:
