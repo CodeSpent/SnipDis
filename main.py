@@ -1,12 +1,10 @@
 import os
 from bot import bot
-
+from bot.config import BOT_TOKEN
 
 def main():
-    from dotenv import load_dotenv
-    load_dotenv()
 
-    BOT_TOKEN = os.getenv("BOT_TOKEN")
+
     if not BOT_TOKEN:
         raise ValueError("BOT_TOKEN environment variable is not set!")
 

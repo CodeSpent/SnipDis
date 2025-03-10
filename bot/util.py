@@ -1,5 +1,6 @@
 import re
 from urllib.parse import urlparse
+from bot.config import DEV_GUILD_ID
 
 def validate_and_normalize_url(url: str) -> str | None:
     """
@@ -39,3 +40,9 @@ def _is_valid_domain(domain: str) -> bool:
     # Regex for a valid domain name
     domain_pattern = r"^(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}$"
     return bool(re.match(domain_pattern, domain)) # Return None if no valid domain is found
+
+
+def get_guild_ids_for_environment():
+    if DEV_GUILD_ID:
+        return [int(DEV_GUILD_ID)]
+    return None
