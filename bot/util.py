@@ -24,6 +24,22 @@ def validate_and_normalize_url(url: str) -> str | None:
     return url
 
 
+def truncate_string(input_str: str, max_length: int = 100) -> str:
+    """
+    Truncates a string to a specified maximum length.
+
+    Args:
+        input_str (str): The input string to truncate.
+        max_length (int): The maximum allowed length of the string.
+
+    Returns:
+        str: The truncated string, with '...' appended if it was shortened.
+    """
+    if len(input_str) > max_length:
+        return input_str[:max_length - 3] + "..."
+    return input_str
+
+
 def _has_valid_tld(url: str) -> bool:
     """
     Check if the URL includes a valid TLD (e.g., .com, .net, .org, .dev).

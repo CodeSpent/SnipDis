@@ -4,7 +4,7 @@ from typing import List
 import dotenv
 import requests
 from bs4 import BeautifulSoup
-from bot.util import validate_and_normalize_url, get_guild_ids_for_environment
+from bot.util import validate_and_normalize_url, get_guild_ids_for_environment, truncate_string
 
 dotenv.load_dotenv()
 
@@ -102,7 +102,7 @@ async def snip(
         channel: discord.Option(discord.ForumChannel, "The Forum Channel to post to."),
         user: discord.Option(discord.User, "User to mention.", default=None, name="mention"),
         additional_users: discord.Option(str, "Additional user mentions (e.g. @user1 @user2)", default=None, name="mentions"),
-        title: discord.Option(str, "Title of the post (default: Webpage's title).", default=None)
+        title: discord.Option(str, "Title of the post (default: Webpage's title).", default=None, min_length=1, max_length=100)
 ):
     url = validate_and_normalize_url(url)
     if not url:
@@ -133,7 +133,7 @@ async def snip(
             title = fetch_webpage_title(url)
 
         if title:
-            title = title[0].upper() + title[1:] if len(title) > 1 else title.upper()
+            title = truncate_string(title[0].upper() + title[1:] if len(title) > 1 else title.upper())
 
         thread = await create_forum_thread(channel, title, url, ctx.author, tagged_users=tagged_users)
 
