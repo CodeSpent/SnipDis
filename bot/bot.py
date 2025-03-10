@@ -20,6 +20,10 @@ bot = discord.Bot(intents=intents)
 async def on_ready():
     print(f"Logged in as {bot.user} (ID: {bot.user.id})")
 
+    activity = discord.CustomActivity(type=discord.ActivityType.custom, name="Use /snip to snip the web!")
+
+    await bot.change_presence(status=discord.Status.online, activity=activity)
+
     print("Syncing slash commands..")
     try:
         await bot.sync_commands()
