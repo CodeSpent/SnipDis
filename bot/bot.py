@@ -1,6 +1,9 @@
+import asyncio
 import os
+
+import aiohttp
 import discord
-from typing import List
+from typing import List, Optional
 import dotenv
 import requests
 from bs4 import BeautifulSoup
@@ -32,19 +35,30 @@ async def on_ready():
         print(f"Failed to sync commands: {e}")
 
 
-def fetch_webpage_title(url: str) -> str | None:
+async def fetch_webpage_title(url: str, retries: int = 3, delay: int = 5) -> Optional[str]:
     try:
-        response = requests.get(url, timeout=10)
-        response.raise_for_status()
+        async with aiohttp.ClientSession() as session:
+            for attempt in range(retries):
+                async with session.get(url, timeout=10) as response:
+                    html = await response.text()
+                    soup = BeautifulSoup(html, "html.parser")
 
-        soup = BeautifulSoup(response.text, "html.parser")
+                    if soup.title and soup.title.string:
+                        return soup.title.string.strip()
 
-        if soup.title and soup.title.string:
-            return soup.title.string.strip()
-        else:
-            return None
+                    og_title = soup.find("meta", property="og:title")
+                    if og_title and og_title.get("content"):
+                        return og_title["content"].strip()
 
-    except requests.RequestException as e:
+                    twitter_title = soup.find("meta", property="twitter:title")
+                    if twitter_title and twitter_title.get("content"):
+                        return twitter_title["content"].strip()
+
+                    print(f"Attempt {attempt + 1} failed. Retrying in {delay} seconds...")
+                    await asyncio.sleep(delay)
+
+        return None
+    except Exception as e:
         print(f"Error fetching the webpage: {e}")
         return None
 
@@ -130,7 +144,7 @@ async def snip(
 
     try:
         if not title:
-            title = fetch_webpage_title(url)
+            title = await fetch_webpage_title(url)
 
         if title:
             title = truncate_string(title[0].upper() + title[1:] if len(title) > 1 else title.upper())

@@ -8,6 +8,7 @@ requests = "*"
 beautifulsoup4 = "*"
 python-dotenv = "*"
 py-cord = "*"
+asyncio = "*"
 
 [dev-packages]
 
