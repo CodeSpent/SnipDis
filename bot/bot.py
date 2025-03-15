@@ -1,17 +1,17 @@
 import asyncio
 import os
-
 import aiohttp
 import discord
 from typing import List, Optional
 import dotenv
 import requests
 from bs4 import BeautifulSoup
-from bot.util import validate_and_normalize_url, get_guild_ids_for_environment, truncate_string
+from bot.util import validate_and_normalize_url, get_guild_ids_for_environment, truncate_string, fetch_proxies
 
 dotenv.load_dotenv()
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
+
 intents = discord.Intents.default()
 
 intents.guilds = True
@@ -35,31 +35,46 @@ async def on_ready():
         print(f"Failed to sync commands: {e}")
 
 
-async def fetch_webpage_title(url: str, retries: int = 3, delay: int = 5) -> Optional[str]:
+async def fetch_webpage_title(url: str) -> Optional[str]:
+    """
+    Fetches the title of a webpage using ScrapeOps API.
+
+    :param url: The target webpage's URL.
+    :param api_key: The API key for ScrapeOps.
+    :return: The title of the webpage, or None if no title is found.
+    """
+    scrapeops_api_url = 'https://proxy.scrapeops.io/v1/'
+
     try:
-        async with aiohttp.ClientSession() as session:
-            for attempt in range(retries):
-                async with session.get(url, timeout=10) as response:
-                    html = await response.text()
-                    soup = BeautifulSoup(html, "html.parser")
+        response = requests.get(
+            url=scrapeops_api_url,
+            params={
+                'api_key': os.getenv('SCRAPEOPS_API_KEY'),
+                'url': url,
+            },
+        )
 
-                    if soup.title and soup.title.string:
-                        return soup.title.string.strip()
+        if response.status_code != 200:
+            print(f"Failed to fetch the webpage, status code: {response.status_code}")
+            return None
 
-                    og_title = soup.find("meta", property="og:title")
-                    if og_title and og_title.get("content"):
-                        return og_title["content"].strip()
+        html_content = response.content
+        soup = BeautifulSoup(html_content, "html.parser")
 
-                    twitter_title = soup.find("meta", property="twitter:title")
-                    if twitter_title and twitter_title.get("content"):
-                        return twitter_title["content"].strip()
+        if soup.title and soup.title.string:
+            return soup.title.string.strip()
 
-                    print(f"Attempt {attempt + 1} failed. Retrying in {delay} seconds...")
-                    await asyncio.sleep(delay)
+        og_title = soup.find("meta", property="og:title")
+        if og_title and og_title.get("content"):
+            return og_title["content"].strip()
+
+        twitter_title = soup.find("meta", property="twitter:title")
+        if twitter_title and twitter_title.get("content"):
+            return twitter_title["content"].strip()
 
         return None
     except Exception as e:
-        print(f"Error fetching the webpage: {e}")
+        print(f"An error occurred while fetching the webpage title: {e}")
         return None
 
 
@@ -118,6 +133,8 @@ async def snip(
         additional_users: discord.Option(str, "Additional user mentions (e.g. @user1 @user2)", default=None, name="mentions"),
         title: discord.Option(str, "Title of the post (default: Webpage's title).", default=None, min_length=1, max_length=100)
 ):
+    await ctx.defer(ephemeral=True)
+
     url = validate_and_normalize_url(url)
     if not url:
         await ctx.respond("❌ The provided URL is invalid after validation! Ensure the URL is correct.", ephemeral=True)
@@ -144,7 +161,8 @@ async def snip(
 
     try:
         if not title:
-            title = await fetch_webpage_title(url)
+            #title = await fetch_webpage_title(url)
+            title = await fetch_webpage_title_via_scrapeops(url)
 
         if title:
             title = truncate_string(title[0].upper() + title[1:] if len(title) > 1 else title.upper())
@@ -163,7 +181,6 @@ async def snip(
         await ctx.respond(
             f"❌ An unexpected error occurred: {str(e)}", ephemeral=True
         )
-
 
 
 if __name__ == "__main__":
