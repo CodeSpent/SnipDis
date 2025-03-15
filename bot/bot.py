@@ -7,11 +7,12 @@ from typing import List, Optional
 import dotenv
 import requests
 from bs4 import BeautifulSoup
-from bot.util import validate_and_normalize_url, get_guild_ids_for_environment, truncate_string
+from bot.util import validate_and_normalize_url, get_guild_ids_for_environment, truncate_string, fetch_proxies
 
 dotenv.load_dotenv()
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
+
 intents = discord.Intents.default()
 
 intents.guilds = True
@@ -35,27 +36,91 @@ async def on_ready():
         print(f"Failed to sync commands: {e}")
 
 
-async def fetch_webpage_title(url: str, retries: int = 3, delay: int = 5) -> Optional[str]:
+async def fetch_webpage_title_via_scrapeops(url: str) -> Optional[str]:
+    """
+    Fetches the title of a webpage using ScrapeOps API.
+
+    :param url: The target webpage's URL.
+    :param api_key: The API key for ScrapeOps.
+    :return: The title of the webpage, or None if no title is found.
+    """
+    scrapeops_api_url = 'https://proxy.scrapeops.io/v1/'
+
     try:
+        response = requests.get(
+            url=scrapeops_api_url,
+            params={
+                'api_key': os.getenv('SCRAPEOPS_API_KEY'),
+                'url': url,
+            },
+        )
+
+        if response.status_code != 200:
+            print(f"Failed to fetch the webpage, status code: {response.status_code}")
+            return None
+
+        html_content = response.content
+        soup = BeautifulSoup(html_content, "html.parser")
+
+        # Extract the page title
+        if soup.title and soup.title.string:
+            return soup.title.string.strip()
+
+        # Fallback to Open Graph title
+        og_title = soup.find("meta", property="og:title")
+        if og_title and og_title.get("content"):
+            return og_title["content"].strip()
+
+        # Fallback to Twitter title
+        twitter_title = soup.find("meta", property="twitter:title")
+        if twitter_title and twitter_title.get("content"):
+            return twitter_title["content"].strip()
+
+        return None
+    except Exception as e:
+        print(f"An error occurred while fetching the webpage title: {e}")
+        return None
+
+
+async def fetch_webpage_title(url: str, retries: int = 3, delay: int = 5) -> Optional[str]:
+    """
+    Fetches the title of a webpage using proxies from proxyscrape.
+    :param url: The target URL
+    :param retries: Maximum retries for a single proxy
+    :param delay: Delay between retries in seconds
+    :return: The title of the webpage, or None if not found.
+    """
+    try:
+        proxies = await fetch_proxies()
+
         async with aiohttp.ClientSession() as session:
             for attempt in range(retries):
-                async with session.get(url, timeout=10) as response:
-                    html = await response.text()
-                    soup = BeautifulSoup(html, "html.parser")
+                for proxy in proxies:
+                    headers = {
+                        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36 Edg/123.0.2420.81"
+                    }
 
-                    if soup.title and soup.title.string:
-                        return soup.title.string.strip()
+                    try:
+                        async with session.get(url, timeout=10, headers=headers, proxy=f"http://{proxy}") as response:
+                            if response.status == 200:
+                                html = await response.text()
+                                soup = BeautifulSoup(html, "html.parser")
 
-                    og_title = soup.find("meta", property="og:title")
-                    if og_title and og_title.get("content"):
-                        return og_title["content"].strip()
+                                if soup.title and soup.title.string:
+                                    return soup.title.string.strip()
 
-                    twitter_title = soup.find("meta", property="twitter:title")
-                    if twitter_title and twitter_title.get("content"):
-                        return twitter_title["content"].strip()
+                                og_title = soup.find("meta", property="og:title")
+                                if og_title and og_title.get("content"):
+                                    return og_title["content"].strip()
 
-                    print(f"Attempt {attempt + 1} failed. Retrying in {delay} seconds...")
-                    await asyncio.sleep(delay)
+                                twitter_title = soup.find("meta", property="twitter:title")
+                                if twitter_title and twitter_title.get("content"):
+                                    return twitter_title["content"].strip()
+
+                    except Exception as e:
+                        print(f"Proxy {proxy} failed: {e}. Removing proxy from local pool.")
+                        proxies.remove(proxy)
+                        await asyncio.sleep(delay)
 
         return None
     except Exception as e:
@@ -118,6 +183,8 @@ async def snip(
         additional_users: discord.Option(str, "Additional user mentions (e.g. @user1 @user2)", default=None, name="mentions"),
         title: discord.Option(str, "Title of the post (default: Webpage's title).", default=None, min_length=1, max_length=100)
 ):
+    await ctx.defer(ephemeral=True)
+
     url = validate_and_normalize_url(url)
     if not url:
         await ctx.respond("❌ The provided URL is invalid after validation! Ensure the URL is correct.", ephemeral=True)
@@ -144,7 +211,8 @@ async def snip(
 
     try:
         if not title:
-            title = await fetch_webpage_title(url)
+            #title = await fetch_webpage_title(url)
+            title = await fetch_webpage_title_via_scrapeops(url)
 
         if title:
             title = truncate_string(title[0].upper() + title[1:] if len(title) > 1 else title.upper())
@@ -163,7 +231,6 @@ async def snip(
         await ctx.respond(
             f"❌ An unexpected error occurred: {str(e)}", ephemeral=True
         )
-
 
 
 if __name__ == "__main__":
