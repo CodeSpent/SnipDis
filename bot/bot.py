@@ -1,12 +1,12 @@
 import asyncio
 import os
-import aiohttp
 import discord
 from typing import List, Optional
 import dotenv
 import requests
 from bs4 import BeautifulSoup
-from bot.util import validate_and_normalize_url, get_guild_ids_for_environment, truncate_string, fetch_proxies
+from bot.util import validate_and_normalize_url, get_guild_ids_for_environment, truncate_string, fetch_proxies, \
+    remove_website_title
 
 dotenv.load_dotenv()
 
@@ -35,47 +35,58 @@ async def on_ready():
         print(f"Failed to sync commands: {e}")
 
 
-async def fetch_webpage_title(url: str) -> Optional[str]:
+async def fetch_webpage_title(url: str, retries: int = 3) -> Optional[str]:
     """
-    Fetches the title of a webpage using ScrapeOps API.
+    Fetches the title of a webpage using ScrapeOps API with retry logic.
 
     :param url: The target webpage's URL.
-    :param api_key: The API key for ScrapeOps.
-    :return: The title of the webpage, or None if no title is found.
+    :param retries: The number of retries to attempt.
+    :return: The longest title fetched from all retries, or None if no title is found.
     """
     scrapeops_api_url = 'https://proxy.scrapeops.io/v1/'
+    titles = []
 
-    try:
-        response = requests.get(
-            url=scrapeops_api_url,
-            params={
-                'api_key': os.getenv('SCRAPEOPS_API_KEY'),
-                'url': url,
-            },
-        )
+    for attempt in range(retries):
+        try:
+            response = requests.get(
+                url=scrapeops_api_url,
+                params={
+                    'api_key': os.getenv('SCRAPEOPS_API_KEY'),
+                    'url': url,
+                },
+            )
 
-        if response.status_code != 200:
-            print(f"Failed to fetch the webpage, status code: {response.status_code}")
-            return None
+            if response.status_code != 200:
+                print(f"Attempt {attempt + 1}/{retries} failed: Status Code {response.status_code}")
+                continue
 
-        html_content = response.content
-        soup = BeautifulSoup(html_content, "html.parser")
+            html_content = response.content
+            soup = BeautifulSoup(html_content, "html.parser")
 
-        if soup.title and soup.title.string:
-            return soup.title.string.strip()
+            if soup.title and soup.title.string:
+                title = remove_website_title(soup.title.string.strip(), url)
+                titles.append(title)
 
-        og_title = soup.find("meta", property="og:title")
-        if og_title and og_title.get("content"):
-            return og_title["content"].strip()
+            og_title = soup.find("meta", property="og:title")
+            if og_title and og_title.get("content"):
+                titles.append(og_title["content"].strip())
 
-        twitter_title = soup.find("meta", property="twitter:title")
-        if twitter_title and twitter_title.get("content"):
-            return twitter_title["content"].strip()
+            twitter_title = soup.find("meta", property="twitter:title")
+            if twitter_title and twitter_title.get("content"):
+                titles.append(twitter_title["content"].strip())
 
-        return None
-    except Exception as e:
-        print(f"An error occurred while fetching the webpage title: {e}")
-        return None
+            if titles:
+                break
+        except Exception as e:
+            print(f"Attempt {attempt + 1}/{retries} failed due to error: {e}")
+            await asyncio.sleep(1)
+
+    longest_title = max(titles, key=len, default=None)
+    if longest_title:
+        print(f"Longest title found after {retries} tries: '{longest_title}'")
+    else:
+        print("Failed to fetch a valid title after retries.")
+    return longest_title
 
 
 async def create_forum_thread(

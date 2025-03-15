@@ -56,6 +56,38 @@ def _is_valid_domain(domain: str) -> bool:
     return bool(re.match(domain_pattern, domain))
 
 
+def remove_website_title(title: str, url: str) -> str:
+    """
+    Removes references to the website's name or domain from a title.
+
+    Args:
+        title (str): The input title to clean.
+        url (str): The website URL to check for its domain.
+
+    Returns:
+        str: The title with the website name removed.
+    """
+    try:
+        parsed_url = urlparse(url)
+        domain_parts = parsed_url.netloc.split('.')
+
+        filtered_parts = [part for part in domain_parts if part not in ['www']]
+        if len(filtered_parts) > 1:
+            base_name = filtered_parts[-2]
+        else:
+            base_name = filtered_parts[0]
+
+        patterns = [re.escape(base_name), re.escape('.'.join(filtered_parts))]
+
+        clean_title = re.sub(rf"\b(?:{'|'.join(patterns)})\b", '', title, flags=re.IGNORECASE).strip()
+        clean_title = re.sub(r"[-|:_]+$", '', clean_title).strip()
+
+        return clean_title
+    except Exception as e:
+        print(f"Error cleaning title: {e}")
+        return title
+
+
 def get_guild_ids_for_environment():
     if DEV_GUILD_ID:
         return [int(DEV_GUILD_ID)]
