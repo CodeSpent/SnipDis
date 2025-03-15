@@ -161,8 +161,7 @@ async def snip(
 
     try:
         if not title:
-            #title = await fetch_webpage_title(url)
-            title = await fetch_webpage_title_via_scrapeops(url)
+            title = await fetch_webpage_title(url)
 
         if title:
             title = truncate_string(title[0].upper() + title[1:] if len(title) > 1 else title.upper())
