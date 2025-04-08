@@ -1,15 +1,12 @@
-import os
+import asyncio
 from bot import bot
-from bot.config import BOT_TOKEN
 
 def main():
-
-
-    if not BOT_TOKEN:
-        raise ValueError("BOT_TOKEN environment variable is not set!")
-
+    """
+    Entry point for starting the bot.
+    """
     try:
-        bot.bot.run(BOT_TOKEN)
+        asyncio.run(bot.run())
     except Exception as e:
         print(f"Error starting the bot: {e}")
 

@@ -3,21 +3,27 @@ import re
 from urllib.parse import urlparse, urlencode
 import aiohttp
 from bot.config import DEV_GUILD_ID
-from typing import List
+from typing import List, Optional, Callable
+import asyncio
+import requests
+from bs4 import BeautifulSoup
 
 def validate_and_normalize_url(url: str) -> str | None:
     """
     Validates and normalizes a URL. Ensures the URL includes both a scheme (e.g., https)
     and a valid domain with a TLD. Returns the normalized URL or None if invalid.
     """
+    # Check for valid TLD
     if not _has_valid_tld(url):
         return None
 
+    # Parse the URL
     parsed = urlparse(url)
-    if not parsed.scheme:
+    if not parsed.scheme:  # If no scheme, assume 'https://'
         url = f"https://{url}"
     parsed = urlparse(url)
 
+    # Validate domain
     if not parsed.netloc or not _is_valid_domain(parsed.netloc):
         return None
 
@@ -132,3 +138,162 @@ async def fetch_proxies() -> List[str]:
     except Exception as e:
         print(f"Error fetching proxies: {e}")
         return []
+
+async def fetch_youtube_video_title(url: str) -> Optional[str]:
+    """
+        Fetches the title of a YouTube video using its URL. The function extracts the video ID from
+        the given URL, accesses the YouTube embed page, parses its HTML, and retrieves the video's
+        title from an Open Graph meta tag. If the URL is invalid, the request fails, or the embed
+        page does not include the expected title information, the function returns None.
+
+        Parameters:
+            url (str): The URL of the YouTube video. It should be a valid YouTube URL either in
+            "youtu.be" short format or "youtube.com/watch" format.
+
+        Returns:
+            Optional[str]: The YouTube video title if retrieved successfully, otherwise None.
+    """
+    if "youtu.be" in url:
+        video_id = url.split("/")[-1]
+    elif "youtube.com/watch" in url:
+        video_id = url.split("v=")[-1].split("&")[0]
+    else:
+        return None
+
+    embed_url = f"https://www.youtube.com/embed/{video_id}"
+
+    try:
+        response = requests.get(embed_url)
+        if response.status_code != 200:
+            print(f"Failed to fetch YouTube embed page: {response.status_code}")
+            return None
+
+        html_content = response.content
+        soup = BeautifulSoup(html_content, "html.parser")
+
+        og_title = soup.find("meta", property="og:title")
+        if og_title and og_title.get("content"):
+            return og_title["content"].strip()
+
+        return None
+    except Exception as e:
+        print(f"Error fetching YouTube video title: {e}")
+        return None
+
+
+async def fetch_webpage_title(url: str, retries: int = 1) -> Optional[str]:
+    """
+    Fetches the webpage title from the given URL.
+
+    This function attempts to retrieve the webpage's title by first determining
+    if the URL requires a specific domain handler. If a custom domain handler
+    is found, it is used to process the URL. If not, the function sends an HTTP
+    GET request to the URL and parses the HTML content to extract the title.
+
+    It searches for titles defined in the `<title>` tag, as well as meta tags
+    `og:title` and `twitter:title`. The longest title among these is selected.
+
+    If a failure occurs (e.g., non-200 status code, network issues), the function
+    retries up to the specified number of attempts, pausing briefly between retries.
+
+    Parameters:
+        url (str): The webpage URL to fetch the title from.
+        retries (int): The number of attempts to fetch the title. Default is 3.
+
+    Returns:
+        Optional[str]: The extracted longest title if found; otherwise, None.
+    """
+    for attempt in range(retries):
+        try:
+            domain_handler = get_domain_handler(url)
+            if domain_handler:
+                return await domain_handler(url)
+
+            response = requests.get(url)
+            if response.status_code != 200:
+                print(f"Attempt {attempt + 1}/{retries} failed: Status Code {response.status_code}")
+                continue
+
+            html_content = response.content
+            soup = BeautifulSoup(html_content, "html.parser")
+
+            titles = []
+
+            if soup.title and soup.title.string:
+                titles.append(soup.title.string.strip())
+
+            og_title = soup.find("meta", property="og:title")
+            if og_title and og_title.get("content"):
+                titles.append(og_title["content"].strip())
+
+            twitter_title = soup.find("meta", property="twitter:title")
+            if twitter_title and twitter_title.get("content"):
+                titles.append(twitter_title["content"].strip())
+
+            longest_title = max(titles, key=len, default=None)
+            if longest_title:
+                print(f"Longest title found: {longest_title}")
+                return longest_title
+
+        except Exception as e:
+            print(f"Attempt {attempt + 1}/{retries} failed due to error: {e}")
+            await asyncio.sleep(1)
+
+    print("Failed to fetch a valid title after retries.")
+    return None
+
+
+def get_domain_from_url(url: str) -> Optional[str]:
+    """
+    Extract the domain name from a given URL.
+
+    This function takes a URL as input and extracts the domain name from it.
+    It uses a regular expression to parse the URL and identify the domain.
+    If the URL is invalid or the domain cannot be extracted, the function
+    returns None.
+
+    Args:
+        url (str): A string representing the URL from which to extract
+                   the domain.
+
+    Returns:
+        Optional[str]: The domain name extracted from the URL, or None if
+                       the domain cannot be identified.
+    """
+    regex = r"(?:https?:\/\/)?(?:www\.)?([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})"
+
+    match = re.search(regex, url)
+    if match:
+        domain = match.group(1)
+        return domain
+    return None
+
+
+def get_domain_handler(url: str) -> Optional[Callable[[str], Optional[str]]]:
+    """
+    Retrieve a domain handler function for the provided URL.
+
+    This function extracts the domain from the given URL and searches for a
+    predefined handler function associated with the domain. If a matching
+    handler is found, it returns the callable handler function. Otherwise,
+    it returns None.
+
+    Parameters:
+        url (str): The URL from which to determine a domain-specific handler.
+
+    Returns:
+        Optional[Callable[[str], Optional[str]]]: A callable handler function
+        if a matching domain is found; otherwise, None.
+    """
+    domain = get_domain_from_url(url)
+    if not domain:
+        return None
+
+    for registered_domain, extractor_name in DOMAIN_EXTRACTORS.items():
+        if registered_domain in domain:
+            extractor_function = globals().get(extractor_name)
+            if callable(extractor_function):
+                return extractor_function
+
+    return None
+
