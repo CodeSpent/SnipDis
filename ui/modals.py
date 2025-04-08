@@ -3,8 +3,15 @@ from typing import List
 from services.discord import create_forum_thread
 
 class TitleInputModal(discord.ui.Modal):
-    def __init__(self, ctx: discord.ApplicationContext, bot: discord.Bot, channel: discord.ForumChannel, url: str,
-                 tagged_users: List[discord.User]):
+    def __init__(
+            self,
+            ctx: discord.ApplicationContext,
+            bot: discord.Bot,
+            channel: discord.ForumChannel,
+            url: str,
+            message: str,
+            tagged_users: List[discord.User]
+    ):
         super().__init__(title="Provide a Title for the Post")
 
         self.title_input = discord.ui.InputText(
@@ -21,6 +28,7 @@ class TitleInputModal(discord.ui.Modal):
         self.channel = channel
         self.url = url
         self.tagged_users = tagged_users
+        self.message = message
 
     async def callback(self, interaction: discord.Interaction):
         title = self.title_input.value
@@ -33,7 +41,13 @@ class TitleInputModal(discord.ui.Modal):
 
         try:
             thread = await create_forum_thread(
-                self.ctx, self.channel, title, self.url, self.ctx.author, self.tagged_users
+                self.ctx,
+                channel=self.channel,
+                title=title,
+                url=self.url,
+                message=self.message,
+                author=self.ctx.author,
+                tagged_users=self.tagged_users
             )
             await interaction.response.send_message(
                 f"🟢 Success!\n\nThread **'{title}'** created successfully in {self.channel.mention}! \n\nView it [here]({thread.jump_url}).",

@@ -1,23 +1,26 @@
 import discord
 from typing import List
 
+from discohook.command import message
+
 
 async def create_forum_thread(
         ctx: discord.ApplicationContext,
-        channel: discord.ForumChannel,
-        title: str,
-        url: str,
-        author: discord.User,
-        tagged_users: List[discord.User]
+        channel: discord.ForumChannel = None,
+        title: str = None,
+        url: str = None,
+        author: discord.User = None,
+        tagged_users: List[discord.User] = None,
+        message: str = None,
 ) -> discord.Thread:
     if title is None:
+        # TODO: We shouldn't respond here
         await ctx.respond(
             "❓ The webpage title could not be fetched from the URL. Please provide a title for the post:",
             ephemeral=True
         )
 
     try:
-        # Create the embed
         embed = discord.Embed(
             title=title,
             url=url,
@@ -28,13 +31,18 @@ async def create_forum_thread(
         embed.add_field(name="Snipped Link", value=url, inline=True)
         embed.set_footer(text=f"Snipped by {author.display_name}")
 
+
+
         if tagged_users:
             mentions = "\n".join(
                 f"{user.mention} " for user in tagged_users
             )
             embed.add_field(name="Mentioned Users", value=mentions, inline=False)
 
-        content_message = f"**\n{author}** snipped **{title.capitalize()}.**\n\n Link:\n{url}\n\nSnipped by:\n {author.mention}"
+        if message is None:
+            message = ""
+
+        content_message = f"**\n{author}** snipped **{title.capitalize()}.**\n\n {message}\n\nLink:\n{url}\n\nSnipped by:\n {author.mention}"
 
         thread = await channel.create_thread(
             content=content_message,
