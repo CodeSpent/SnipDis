@@ -9,11 +9,13 @@ from bot.util import (
     fetch_youtube_video_title,
     get_domain_from_url
 )
+from bot.responder import Responder  # Import the Responder
 
 
 class SnipCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+        self.responder = Responder()  # Initialize the new responder class
 
     @discord.slash_command(
         name="snip",
@@ -24,16 +26,19 @@ class SnipCog(commands.Cog):
             ctx: discord.ApplicationContext,
             url: discord.Option(str, "The URL of the webpage to snip."),
             channel: discord.Option(discord.ForumChannel, "The Forum Channel to post to."),
+            tag: discord.Option(str, "The tag to use for the post (optional).", required=False),
+            # Support for forum tags
             user: discord.Option(discord.User, "User to mention.", default=None, name="mention"),
             additional_users: discord.Option(str, "Additional user mentions (e.g., @user1 @user2)", default=None,
                                              name="mentions"),
             title: discord.Option(str, "Title of the post (default: Webpage's title).", default=None, min_length=1,
                                   max_length=100)
     ):
+        self.responder.set_context(ctx)  # Set context for the responder
+
         url = validate_and_normalize_url(url)
         if not url:
-            await ctx.respond("🔴 Error!\n\nThe provided URL is invalid after validation! Ensure the URL is correct.",
-                              ephemeral=True)
+            await self.responder.error("The provided URL is invalid after validation! Ensure the URL is correct.")
             return
 
         if not title:
@@ -41,7 +46,7 @@ class SnipCog(commands.Cog):
             if domain in ["youtube.com", "youtu.be"]:
                 title = await fetch_youtube_video_title(url)
                 if not title:
-                    await ctx.respond("🔴 Error!\n\nCouldn't fetch the title for this YouTube video.", ephemeral=True)
+                    await self.responder.error("Couldn't fetch the title for this YouTube video.")
                     return
             else:
                 title = await fetch_webpage_title(url)
@@ -65,25 +70,23 @@ class SnipCog(commands.Cog):
                     if fetched_user:
                         tagged_users.append(fetched_user)
                 except Exception:
-                    await ctx.respond(
-                        "⚠️ Unable to fetch one or more users from `additional_users`. Ensure you use valid mentions.",
-                        ephemeral=True
+                    await self.responder.warning(
+                        "Unable to fetch one or more users from `additional_users`. Ensure you use valid mentions."
                     )
                     return
 
         try:
             thread = await create_forum_thread(ctx, channel, title, url, ctx.author, tagged_users)
-            await ctx.respond(
-                f"🟢 Success!\n\nThread **'{title}'** created successfully in {channel.mention}! \n\nView it [here]({thread.jump_url}).",
-                ephemeral=True
+            await self.responder.success(
+                f"Thread **'{title}'** successfully created in {channel.mention}! \n\nView it [here]({thread.jump_url})."
             )
         except discord.Forbidden:
-            await ctx.respond(
-                "🔴 Error!\n\nThe bot lacks permissions to create threads in the selected forum channel.", ephemeral=True
+            await self.responder.error(
+                "The bot lacks permissions to create threads in the selected forum channel."
             )
         except Exception as e:
-            await ctx.respond(
-                f"🔴 Error!\n\nAn unexpected error occurred: {str(e)}", ephemeral=True
+            await self.responder.error(
+                f"An unexpected error occurred: {str(e)}"
             )
 
 

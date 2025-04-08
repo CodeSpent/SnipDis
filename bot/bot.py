@@ -29,8 +29,7 @@ async def on_ready():
     # Sync commands with Discord
     print("Syncing slash commands...")
     try:
-        await bot.sync_commands(commands=bot.application_commands, guild_ids=get_guild_ids_for_environment(),
-                                force=True)
+        await bot.sync_commands(commands=bot.application_commands, guild_ids=get_guild_ids_for_environment())
         print("Commands synced successfully.")
     except Exception as e:
         print(f"Failed to sync commands: {e}")
@@ -38,13 +37,18 @@ async def on_ready():
 
 async def load_cogs():
     """
-    Load all cogs (command extensions) into the bot.
+    Dynamically load all cogs (command extensions) in the 'bot/cogs' directory.
     """
-    try:
-        bot.load_extension("bot.cogs.snip_cog")
-        print("Loaded snip_cog successfully.")
-    except Exception as e:
-        print(f"Failed to load snip_cog: {e}")
+    cogs_directory = "bot/cogs"
+    for filename in os.listdir(cogs_directory):
+        if filename.endswith(".py") and not filename.startswith("__"):
+            cog_name = f"{cogs_directory.replace('/', '.')}.{filename[:-3]}"  # Convert to import path
+            try:
+                bot.load_extension(cog_name)
+                print(f"Loaded {cog_name} successfully.")
+            except Exception as e:
+                print(f"Failed to load {cog_name}: {e}")
+
 
 
 async def run():
