@@ -7,6 +7,9 @@ from typing import List, Optional, Callable
 import asyncio
 import requests
 from bs4 import BeautifulSoup
+from services.youtube import YouTubeService
+
+youtube_service = YouTubeService(os.getenv("YOUTUBE_API_KEY"))
 
 def validate_and_normalize_url(url: str) -> str | None:
     """
@@ -139,7 +142,7 @@ async def fetch_proxies() -> List[str]:
         print(f"Error fetching proxies: {e}")
         return []
 
-async def fetch_youtube_video_title(url: str) -> Optional[str]:
+async def fetch_youtube_video_title_from_embed(url: str) -> Optional[str]:
     """
         Fetches the title of a YouTube video using its URL. The function extracts the video ID from
         the given URL, accesses the YouTube embed page, parses its HTML, and retrieves the video's
@@ -179,6 +182,35 @@ async def fetch_youtube_video_title(url: str) -> Optional[str]:
     except Exception as e:
         print(f"Error fetching YouTube video title: {e}")
         return None
+
+
+async def fetch_youtube_video_title(url: str) -> Optional[str]:
+    """
+    Fetches the title of a YouTube video using its URL via the YouTubeService.
+
+    Parameters:
+        url (str): The URL of the YouTube video. It should be a valid YouTube URL either in
+                   "youtu.be" short format or "youtube.com/watch" format.
+
+    Returns:
+        Optional[str]: The YouTube video title if retrieved successfully, otherwise None.
+    """
+    # Extract video ID from the URL
+    if "youtu.be" in url:
+        video_id = url.split("/")[-1]
+    elif "youtube.com/watch" in url:
+        video_id = url.split("v=")[-1].split("&")[0]
+    else:
+        return None  # Invalid URL format
+
+    # Use the YouTubeService to fetch the video title
+    try:
+        title = youtube_service.get_video_title(video_id)
+        return title if "No video found" not in title and "An error occurred" not in title else None
+    except Exception as e:
+        print(f"Error fetching YouTube video title from service: {e}")
+        return None
+
 
 
 async def fetch_webpage_title(url: str, retries: int = 1) -> Optional[str]:

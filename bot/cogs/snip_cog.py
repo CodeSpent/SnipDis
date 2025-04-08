@@ -3,7 +3,12 @@ from discord.ext import commands
 
 from services.discord import create_forum_thread
 from ui.modals import TitleInputModal
-from bot.util import fetch_webpage_title, validate_and_normalize_url
+from bot.util import (
+    fetch_webpage_title,
+    validate_and_normalize_url,
+    fetch_youtube_video_title,
+    get_domain_from_url
+)
 
 
 class SnipCog(commands.Cog):
@@ -32,12 +37,18 @@ class SnipCog(commands.Cog):
             return
 
         if not title:
-            title = await fetch_webpage_title(url)
-
-            if not title:
-                modal = TitleInputModal(ctx, self.bot, channel=channel, url=url, tagged_users=[])
-                await ctx.send_modal(modal)
-                return
+            domain = get_domain_from_url(url)
+            if domain in ["youtube.com", "youtu.be"]:
+                title = await fetch_youtube_video_title(url)
+                if not title:
+                    await ctx.respond("🔴 Error!\n\nCouldn't fetch the title for this YouTube video.", ephemeral=True)
+                    return
+            else:
+                title = await fetch_webpage_title(url)
+                if not title:
+                    modal = TitleInputModal(ctx, self.bot, channel=channel, url=url, tagged_users=[])
+                    await ctx.send_modal(modal)
+                    return
 
         await ctx.defer(ephemeral=True)
 
