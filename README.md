@@ -1,112 +1,111 @@
-# 🌐✨ **Snip Dis** – A Web Snipper for Discord Forums 👾💬
-Welcome to **Snip Dis**, your powerful companion for easily sharing web content to Discord forums! **Snip Dis** fetches webpage titles, validates links, and organizes information into beautifully threaded forum posts, bringing seamless content sharing directly to your Discord servers.
-## 🎯 **Features**
-- 🔗 **Fetch & Share Titles**: Automatically extract a webpage's title from a URL and create detailed threads in Discord forums.
-- 📝 **Custom Titles**: Can't extract the title? No problem! Provide a manual title for accurate content threads.
-- 📜 **Beautiful Embeds**: Automatically create and format stunning embeds for more professional and eye-catching posts.
-- ⚙️ **Easy Admin Configurations**:
-    - Set bot nicknames for improved server management.
-    - Update bot avatars dynamically using URLs for a customizable experience.
+# **Snip Dis**
+## Web clipping for Discord Forums
 
-- 🛡️ **Validation & Error Handling**:
-    - Automatically validates URLs for syntax issues.
-    - Provides meaningful error feedback to users on invalid links or bot permission limitations.
+**SnipDis** is a utility Discord bot for clipping websites, articles, videos, & other web media to post to Discord Forum Channels. 
+SnipDis simplifies content sharing & enables all the same features you'd have manually posting to forums, as well as tools to manage
+the forums you **_snip_** to.
 
-- 🤖 **Effortless Integration**: With Slash commands designed for simplicity, you can take full control over your forum-sharing needs.
 
-## 🛠️ **Installation**
-To set up **Snip Dis**, follow these steps:
-### 1. Clone the Repository
-``` bash
-git clone https://github.com/yourusername/snip-dis.git
-cd snip-dis
-```
-### 2. Install Dependencies
-Ensure you have Python 3.8+ installed:
-``` bash
-pip install -r requirements.txt
-```
-### 3. Add Your Discord Bot Token
-Set up a `.env` file in the project root:
-``` 
-BOT_TOKEN=your_discord_bot_token_here
-```
-🔑 Need to create a bot? Follow [this guide]() to get your token and set up OAuth scopes for **applications.commands** and **bot**.
-### 4. Run the Bot
-``` bash
-python main.py
-```
-Your bot, **Snip Dis**, is now live! 🎉
-## 🖇️ **Available Commands**
-### 1. **/snip**
 
-> _Fetch a URL's title and create a forum thread._
-> 
+This command creates a thread in the specified forum channel with the provided URL and title.
 
-- **Usage**: `/snip <url: str> [channel: ForumChannel] [title: str]`
-- **Example**:
-`/snip url=https://example.com channel=#web-links`
-📜 Create a thread containing the page's metadata in the specified forum channel.
+---
 
-### 2. **/set_nickname**
+## **Setup Instructions**  
 
-> _Set the bot's nickname in the current server._
-> 
+1. **Clone the repository**:  
+   ```bash
+   git clone https://github.com/yourusername/snip-dis.git
+   cd snip-dis
+   ```  
 
-- **Usage**: `/set_nickname <nickname: str>`
-- **Example**:
-`/set_nickname SnipBot`
-🤖 Rename the bot to "SnipBot" in your Discord server.
+2. **Install dependencies**:  
+   Ensure Python 3.8+ is installed, then run:  
+   ```bash
+   pip install -r requirements.txt
+   ```  
 
-### 3. **/set_avatar**
+3. **Configure the bot**:  
+   Create a `.env` file and add your Discord bot token:  
+   ```  
+   BOT_TOKEN=your_discord_bot_token  
+   ```  
 
-> _Update the bot's avatar dynamically using an image URL._
-> 
+4. **Run the bot**:  
+   ```bash
+   python main.py
+   ```  
 
-- **Usage**: `/set_avatar <avatar_url: str>`
-- **Example**:
-`/set_avatar https://example.com/my-avatar.png`
-🌟 Give your bot a fresh look with a custom avatar image.
+---
 
-## ⚙️ **Configuration**
-### Bot Permissions
-Minimum bot permissions required:
-- `Manage Threads`
-- `Send Messages`
-- `Embed Links`
-- `Change Nickname` (Optional)
+## **Commands**  
 
-Ensure the bot has access to the specific forum channels where it needs to operate.
-### Dependencies
-The bot uses the following:
-- **[discord.py]()**: For interacting with the Discord API.
-- **[requests]()**: For retrieving webpage data.
-- **[BeautifulSoup]()**: For parsing webpage metadata.
-- **[Python-dotenv]()**: For easy environment variable management.
+- **/snip**: Fetch content from a URL and create a thread in a Discord Forum Channel.  
+  ```  
+  /snip <url> <forum_channel> [title]  
+  ```  
+- **/set_nickname**: Modify the bot's nickname in the server.  
+  ```  
+  /set_nickname <nickname>  
+  ```  
+- **/set_avatar**: Change the bot's avatar using a provided image URL.  
+  ```  
+  /set_avatar <avatar_url>  
+  ```
 
-## ❗ **Error Handling**
+---
 
-| Error | Cause | Solution |
-| --- | --- | --- |
-| `Invalid URL provided` | URL does not conform to standard formatting. | Check the URL syntax before providing it to the bot. |
-| `Permission Error` | Bot lacks permissions to create threads in forums. | Ensure the bot has the necessary permissions in the forum channel. |
-| `Title extraction failure` | The webpage has no `<title>` tag, or content is dynamic (e.g., JavaScript-rendered). | Provide a manual `title` argument when using `/snip`. |
-| `Bot token missing` | BOT_TOKEN not set in `.env`. | Add your bot token to the `.env` file as shown in the setup steps. |
+## **Permissions**  
 
-Feel free to suggest features or report bugs via [Issues]().
-## 🤝 **Contributing**
-We welcome contributions! To get started:
-1. Fork the repository.
-2. Clone it locally.
-3. Branch from `main`: `git checkout -b feature-name`.
-4. Push your changes: `git push origin feature-name`.
-5. Open a Pull Request.
+To allow the bot to function properly, grant it the following permissions:  
 
-Be sure to follow the **[contributor guidelines]()**.
-## 📜 **License**
-This project is licensed under the **MIT License**. Feel free to use, modify, and distribute it, but make sure to credit the original authors. See the full license in the `LICENSE` file.
-## ❤️ **Acknowledgements**
-- Built with 💙 using **py-cord** and **Python**.
-- Inspired by the need for a streamlined way of sharing links in resource oriented Discord forum channels.
+- Manage Threads  
+- Send Messages  
+- Embed Links  
+- Change Nickname (optional for customization)  
 
-Start snipping with **Snip Dis** today and make Discord forums smarter, sleeker, and more efficient! 🚀
+Ensure the bot is added to the correct channels with sufficient permissions.
+
+---
+
+## **Error Handling**  
+
+- **Invalid URL**: Ensure the URL is correctly formatted and valid.  
+- **Permission Denied**: Verify the bot has the appropriate permissions in the target forum channel.  
+- **Metadata Fetch Failure**: Provide a manual title if the page does not include metadata.  
+- **Missing Bot Token**: Ensure that the bot token is added to the `.env` file.  
+
+---
+
+## **Dependencies**  
+
+- **discord.py**: For interacting with the Discord API.  
+- **requests**: For processing web requests.  
+- **BeautifulSoup**: For parsing webpage metadata.  
+- **dotenv**: To manage environment variables securely.  
+
+---
+
+## **Contributing**  
+
+1. Fork the repository.  
+2. Clone your fork locally.  
+3. Create a new branch:  
+   ```bash
+   git checkout -b feature-branch-name  
+   ```  
+4. Push your changes and submit a pull request.  
+
+Review the contribution guidelines in the repository before submitting.  
+
+---
+
+## **License**  
+
+This project is licensed under the MIT License. See the `LICENSE` file for more details.
+
+--- 
+
+## **Acknowledgments**  
+
+Built using Python and py-cord to simplify and enhance content-sharing workflows in Discord forums.
