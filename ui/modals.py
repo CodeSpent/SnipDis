@@ -1,5 +1,7 @@
 import discord
 from typing import List
+
+from bot.responder import Responder
 from services.discord import create_forum_thread
 
 class TitleInputModal(discord.ui.Modal):
@@ -30,12 +32,15 @@ class TitleInputModal(discord.ui.Modal):
         self.tagged_users = tagged_users
         self.message = message
 
+        self.responder = Responder()
+
     async def callback(self, interaction: discord.Interaction):
+        self.responder.set_context(interaction)
+
         title = self.title_input.value
         if not title:
-            await interaction.response.send_message(
-                "⚠️ Title cannot be empty. Please try submitting a valid title.",
-                ephemeral=True
+            await self.responder.error(
+                "Title cannot be empty. Please submit a valid title."
             )
             return
 
@@ -49,15 +54,14 @@ class TitleInputModal(discord.ui.Modal):
                 author=self.ctx.author,
                 tagged_users=self.tagged_users
             )
-            await interaction.response.send_message(
-                f"🟢 Success!\n\nThread **'{title}'** created successfully in {self.channel.mention}! \n\nView it [here]({thread.jump_url}).",
-                ephemeral=True,
+            await self.responder.success(
+                f"Thread **'{title}'** created successfully in {self.channel.mention}! \n\nView it [here]({thread.jump_url})."
             )
         except discord.Forbidden:
-            await interaction.response.send_message(
-                "🔴 Error!\n\nThe bot lacks permissions to create threads in the selected Forum channel.", ephemeral=True
+            await self.responder.error(
+                "The bot lacks permissions to create threads in the selected Forum channel."
             )
         except Exception as e:
-            await interaction.response.send_message(
-                f"🔴 Error!\n\n An unexpected error occurred during thread creation: \n```\n{str(e)}```", ephemeral=True
+            await self.responder.error(
+                f"An unexpected error occurred during thread creation: \n```\n{str(e)}```"
             )

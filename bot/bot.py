@@ -22,11 +22,9 @@ async def on_ready():
     """
     print(f"Logged in as {bot.user} (ID: {bot.user.id})")
 
-    # Set a custom activity
     activity = discord.CustomActivity(type=discord.ActivityType.custom, name="Use /snip to snip the web!")
     await bot.change_presence(status=discord.Status.online, activity=activity)
 
-    # Sync commands with Discord
     print("Syncing slash commands...")
     try:
         await bot.sync_commands(commands=bot.application_commands, guild_ids=get_guild_ids_for_environment())
@@ -56,5 +54,5 @@ async def run():
     Asynchronous entry point to start the bot and load commands.
     """
     async with bot:
-        await load_cogs()  # Load the snip cog here
+        await load_cogs()
         await bot.start(BOT_TOKEN)
