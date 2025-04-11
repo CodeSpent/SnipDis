@@ -9,6 +9,8 @@ beautifulsoup4 = "*"
 python-dotenv = "*"
 py-cord = "*"
 asyncio = "*"
+newspaper4k = "*"
+sentry-sdk = "*"
 
 [dev-packages]
 
