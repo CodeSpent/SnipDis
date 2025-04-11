@@ -1,6 +1,5 @@
 import discord
-from discord.ext import commands
-
+from discord.ext import commands, tasks
 from services.discord import create_forum_thread
 from ui.modals import TitleInputModal
 from bot.util import (
@@ -9,7 +8,7 @@ from bot.util import (
     fetch_youtube_video_title,
     get_domain_from_url
 )
-from bot.responder import Responder  # Import the Responder
+from bot.responder import Responder
 
 
 class SnipCog(commands.Cog):

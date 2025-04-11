@@ -2,7 +2,7 @@ import os
 import re
 from urllib.parse import urlparse, urlencode
 import aiohttp
-from bot.config import DEV_GUILD_ID
+from bot.config import DEV_GUILD_IDS
 from typing import List, Optional, Callable
 import asyncio
 import requests
@@ -98,8 +98,17 @@ def remove_website_title(title: str, url: str) -> str:
 
 
 def get_guild_ids_for_environment():
-    if DEV_GUILD_ID:
-        return [int(DEV_GUILD_ID)]
+    """
+    Retrieves a list of guild IDs for the current environment.
+
+    Note: This is currently only used for development environments.
+
+    Returns:
+        list[int] | None: A list of integer guild IDs or None if no guild IDs are provided.
+    """
+    if DEV_GUILD_IDS:
+        # Split the comma-delimited string into an array and convert each ID to an integer
+        return [int(guild_id.strip()) for guild_id in DEV_GUILD_IDS.split(",")]
     return None
 
 
@@ -141,6 +150,7 @@ async def fetch_proxies() -> List[str]:
     except Exception as e:
         print(f"Error fetching proxies: {e}")
         return []
+
 
 async def fetch_youtube_video_title_from_embed(url: str) -> Optional[str]:
     """
@@ -210,7 +220,6 @@ async def fetch_youtube_video_title(url: str) -> Optional[str]:
     except Exception as e:
         print(f"Error fetching YouTube video title from service: {e}")
         return None
-
 
 
 async def fetch_webpage_title(url: str, retries: int = 1) -> Optional[str]:

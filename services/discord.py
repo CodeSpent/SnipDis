@@ -1,9 +1,6 @@
 import discord
 from typing import List
 
-from discohook.command import message
-
-
 async def create_forum_thread(
         ctx: discord.ApplicationContext,
         channel: discord.ForumChannel = None,
@@ -14,11 +11,7 @@ async def create_forum_thread(
         message: str = None,
 ) -> discord.Thread:
     if title is None:
-        # TODO: We shouldn't respond here
-        await ctx.respond(
-            "❓ The webpage title could not be fetched from the URL. Please provide a title for the post:",
-            ephemeral=True
-        )
+        return None
 
     try:
         embed = discord.Embed(
@@ -30,8 +23,6 @@ async def create_forum_thread(
                          icon_url=author.avatar.url if author.avatar else None)
         embed.add_field(name="Snipped Link", value=url, inline=True)
         embed.set_footer(text=f"Snipped by {author.display_name}")
-
-
 
         if tagged_users:
             mentions = "\n".join(

@@ -6,11 +6,6 @@ from bot.responder import Responder
 
 
 class SetupCog(commands.Cog):
-    def __init__(self, bot):
-        self.bot = bot
-        self.responder = Responder()
-
-
     @slash_command(
         name="startforum",
         description="Create a full category and channel setup in one command."
@@ -18,14 +13,19 @@ class SetupCog(commands.Cog):
     async def setup(
             self,
             ctx: discord.ApplicationContext,
-            category_name: Option(str, "The name of the category to create."),
-            forum_name: Option(str, "The name of the Forum channel to create."),
-            forum_description: Option(str, "A short description for the Forum channel."),
+            name: Option(str, "The name of the Forum channel to create."),
+            description: Option(str, "A  description for the Forum channel."),
+            category: Option(discord.CategoryChannel, "The category to create the Forum channel in.", required=False),
+            category_name: Option(str, "The name of the category to create for your Forum channel.", required=False),
             nsfw_category: Option(bool, "Mark the category as NSFW (Not Safe For Work).", default=False),
             roles: Option(str, "Comma-separated role names to allow access.", required=False),
             position: Option(int, "Position of the category in the list.", required=False)
     ):
         self.responder.set_context(ctx)
+
+        if position is not None and category is not None:
+            await self.responder.error("You cannot modify the position of an existing category.")
+            return
 
         if not ctx.author.guild_permissions.manage_channels:
             await self.responder.error("You do not have permission to use this command.")
@@ -63,8 +63,8 @@ class SetupCog(commands.Cog):
             )
 
             forum_channel: ForumChannel = await guild.create_forum_channel(
-                name=forum_name,
-                topic=forum_description[:1024],
+                name=name,
+                topic=description[:1024],
                 overwrites=overwrites,
                 nsfw=nsfw_category,
                 category=category
@@ -81,6 +81,10 @@ class SetupCog(commands.Cog):
             await self.responder.error("Missing permissions to create channels.")
         except Exception as e:
             await self.responder.error(f"An unexpected error occurred: {e}")
+
+    def __init__(self, bot):
+        self.bot = bot
+        self.responder = Responder()
 
 
 def setup(bot):
