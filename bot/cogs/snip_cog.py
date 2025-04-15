@@ -1,7 +1,6 @@
 import discord
 import sentry_sdk
 from discord.ext import commands
-import sentry_sdk
 from bot.responder import Responder
 from bot.util import (
     fetch_webpage_title,
@@ -90,9 +89,7 @@ class SnipCog(commands.Cog):
                 level="info"
             )
 
-            # (Step 1) Create a dedicated Sentry scope for this modal interaction
             with sentry_sdk.new_scope() as scope:
-                # Attach additional Sentry context for this interaction
                 scope.set_context("modal_invocation", {
                     "user": ctx.author.name,
                     "user_id": ctx.author.id,
@@ -102,7 +99,6 @@ class SnipCog(commands.Cog):
                     "action": "title_modal_invocation"
                 })
 
-                # Pass context to the modal instance
                 modal = TitleInputModal(
                     ctx=ctx,
                     bot=self.bot,
@@ -112,14 +108,12 @@ class SnipCog(commands.Cog):
                     tagged_users=[]
                 )
 
-                # Optionally store any additional debugging metadata as an attribute
                 modal.sentry_context = {
                     "user": ctx.author.name,
                     "user_id": ctx.author.id,
                     "url": url
                 }
 
-                # Send the modal to the user
                 await ctx.send_modal(modal)
 
         if not title:

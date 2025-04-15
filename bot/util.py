@@ -1,6 +1,6 @@
 import os
 import re
-from urllib.parse import urlparse, urlencode
+from urllib.parse import urlparse, urlencode, parse_qs
 import aiohttp
 from bot.config import DEV_GUILD_IDS
 from typing import List, Optional, Callable
@@ -152,46 +152,30 @@ async def fetch_proxies() -> List[str]:
         return []
 
 
-async def fetch_youtube_video_title_from_embed(url: str) -> Optional[str]:
+def extract_youtube_video_id(url: str) -> str:
     """
-        Fetches the title of a YouTube video using its URL. The function extracts the video ID from
-        the given URL, accesses the YouTube embed page, parses its HTML, and retrieves the video's
-        title from an Open Graph meta tag. If the URL is invalid, the request fails, or the embed
-        page does not include the expected title information, the function returns None.
+    Extract the video ID from a YouTube URL, supporting both 'youtube.com' and 'youtu.be' formats.
 
-        Parameters:
-            url (str): The URL of the YouTube video. It should be a valid YouTube URL either in
-            "youtu.be" short format or "youtube.com/watch" format.
+    Args:
+        url (str): The YouTube URL.
 
-        Returns:
-            Optional[str]: The YouTube video title if retrieved successfully, otherwise None.
+    Returns:
+        str: The extracted video ID, or None if it can't be determined.
     """
-    if "youtu.be" in url:
-        video_id = url.split("/")[-1]
-    elif "youtube.com/watch" in url:
-        video_id = url.split("v=")[-1].split("&")[0]
-    else:
-        return None
+    parsed_url = urlparse(url)
 
-    embed_url = f"https://www.youtube.com/embed/{video_id}"
+    if "youtube.com" in parsed_url.netloc:
+        query_params = parse_qs(parsed_url.query)
+        if "v" in query_params:
+            return query_params["v"][0]
 
-    try:
-        response = requests.get(embed_url)
-        if response.status_code != 200:
-            print(f"Failed to fetch YouTube embed page: {response.status_code}")
-            return None
+    if "youtu.be" in parsed_url.netloc:
+        video_id = parsed_url.path.lstrip("/")
+        if "?" in video_id:
+            video_id = video_id.split("?")[0]
+        return video_id
 
-        html_content = response.content
-        soup = BeautifulSoup(html_content, "html.parser")
-
-        og_title = soup.find("meta", property="og:title")
-        if og_title and og_title.get("content"):
-            return og_title["content"].strip()
-
-        return None
-    except Exception as e:
-        print(f"Error fetching YouTube video title: {e}")
-        return None
+    return None
 
 
 async def fetch_youtube_video_title(url: str) -> Optional[str]:
@@ -205,15 +189,8 @@ async def fetch_youtube_video_title(url: str) -> Optional[str]:
     Returns:
         Optional[str]: The YouTube video title if retrieved successfully, otherwise None.
     """
-    # Extract video ID from the URL
-    if "youtu.be" in url:
-        video_id = url.split("/")[-1]
-    elif "youtube.com/watch" in url:
-        video_id = url.split("v=")[-1].split("&")[0]
-    else:
-        return None  # Invalid URL format
+    video_id = extract_youtube_video_id(url)
 
-    # Use the YouTubeService to fetch the video title
     try:
         title = youtube_service.get_video_title(video_id)
         return title if "No video found" not in title and "An error occurred" not in title else None
