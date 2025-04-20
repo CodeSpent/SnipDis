@@ -13,7 +13,8 @@ class TitleInputModal(discord.ui.Modal):
             channel: discord.ForumChannel,
             url: str,
             message: str,
-            tagged_users: List[discord.User]
+            mention: discord.User,
+            additional_mentions: List[discord.User]
     ):
         super().__init__(title="Provide a Title for the Post")
 
@@ -30,7 +31,8 @@ class TitleInputModal(discord.ui.Modal):
         self.bot = bot
         self.channel = channel
         self.url = url
-        self.tagged_users = tagged_users
+        self.mention = mention
+        self.additional_mentions = additional_mentions
         self.message = message
 
         self.responder = Responder()
@@ -47,13 +49,13 @@ class TitleInputModal(discord.ui.Modal):
 
         try:
             thread = await create_forum_thread(
-                self.ctx,
                 channel=self.channel,
                 title=title,
                 url=self.url,
                 message=self.message,
                 author=self.ctx.author,
-                tagged_users=self.tagged_users
+                mention=self.mention,
+                additional_mentions=self.additional_mentions
             )
             sentry_sdk.capture_message(
                 f"Snip successfully created: {title}",

@@ -2,6 +2,8 @@ import os
 import re
 from urllib.parse import urlparse, urlencode, parse_qs
 import aiohttp
+import discord
+
 from bot.config import DEV_GUILD_IDS
 from typing import List, Optional, Callable
 import asyncio
@@ -315,3 +317,37 @@ def get_domain_handler(url: str) -> Optional[Callable[[str], Optional[str]]]:
 
     return None
 
+
+def build_mentioned_users_string(mention: discord.User, additional_mentions: [discord.User]) -> str:
+    """
+    Builds a concatenated string of mentioned users for a message or embed.
+
+    This function takes a primary mentioned user and a list of additional
+    mentioned users, and builds a comma-separated string of their
+    usernames.
+
+    Parameters:
+        mention (discord.User): The initial mentioned user.
+        additional_mentions (List[discord.User]): A list of additional mentioned users.
+
+    Returns:
+    str: Comma-delimited string of mentioned users.
+    """
+    if not mention:
+        raise ValueError("Initial mention user is required.")
+
+    """
+    The way mentions work due to limitations of autocomplete functionality
+    is that we allow one mention to be inline using autocomplete as `mention`,
+    but all subsequent mentions are in a standard text field comma-delimited.
+
+    I would like to have multiple mentions in the autocomplete field, but
+    to my knowledge this is not yet possible.
+    """
+    if not additional_mentions:
+        mentions = [mention]
+    elif mention not in additional_mentions:
+        mentions = [mention] + additional_mentions
+
+    mentions_string = ", ".join([f"<@{mention.id}>" for mention in mentions])
+    return mentions_string

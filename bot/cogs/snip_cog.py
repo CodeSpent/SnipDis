@@ -27,12 +27,10 @@ class SnipCog(commands.Cog):
             ctx: discord.ApplicationContext,
             url: discord.Option(str, "The URL of the webpage to snip."),
             channel: discord.Option(discord.ForumChannel, "The Forum Channel to post to."),
-            user: discord.Option(discord.User, "User to mention.", default=None, name="mention"),
+            mention: discord.Option(discord.User, "User to mention.", default=None, name="mention"),
             message: discord.Option(str, "Message body for the Snip.", default=None, min_length=1, max_length=1000),
-            additional_users: discord.Option(str, "Additional user mentions (e.g., @user1 @user2)", default=None,
-                                             name="mentions"),
-            title: discord.Option(str, "Title of the post (default: Webpage's title).", default=None, min_length=1,
-                                  max_length=100)
+            additional_mentions: discord.Option([], "Additional user mentions (e.g., @user1 @user2)", default=[], name="mentions"),
+            title: discord.Option(str, "Title of the post (default: Webpage's title).", default=None, min_length=1, max_length=100)
     ):
         sentry_sdk.add_breadcrumb(
             category="snip",
@@ -44,8 +42,8 @@ class SnipCog(commands.Cog):
                     "name": channel.name
                 },
                 "title": title,
-                "additional_users": additional_users,
-                "mentioned_user": user.name if user else None,
+                "additional_users": additional_mentions,
+                "mentioned_user": mention.name if mention else None,
                 "message": message,
                 "issuer": {
                     "id": ctx.author.id,
@@ -58,8 +56,10 @@ class SnipCog(commands.Cog):
 
         self.responder.set_context(ctx)
 
+        # Mark the original url for telemetry
         original_url = url
         url = validate_and_normalize_url(url)
+
         if not url:
             await self.responder.error("The provided URL is invalid after validation! Ensure the URL is correct.")
             sentry_sdk.add_breadcrumb(
@@ -81,7 +81,14 @@ class SnipCog(commands.Cog):
         )
 
         async def _invoke_title_modal(ctx: discord.ApplicationContext):
-            # Add a breadcrumb to trace modal invocation for better debugging in Sentry
+            """
+            Sentry breadcrumb needs to be initialized before invoking modal
+            to avoid losing scoped context up to here causing any requests
+            with modal invocation to be completely ignored in Sentry.
+
+            new_scope() lets us push this context, but this will not work
+            anywhere other than this point in time.
+            """
             sentry_sdk.add_breadcrumb(
                 category="snip",
                 message="Invoking TitleInputModal due to missing title",
@@ -105,7 +112,8 @@ class SnipCog(commands.Cog):
                     channel=channel,
                     url=url,
                     message=message,
-                    tagged_users=[]
+                    mention=mention,
+                    additional_mentions=additional_mentions
                 )
 
                 modal.sentry_context = {
@@ -161,11 +169,11 @@ class SnipCog(commands.Cog):
         await ctx.defer(ephemeral=True)
 
         tagged_users = []
-        if user:
-            tagged_users.append(user)
+        if mention:
+            tagged_users.append(mention)
 
-        if additional_users:
-            user_mentions = additional_users.split(" ")
+        if additional_mentions:
+            user_mentions = additional_mentions.split(" ")
             for user_mention in user_mentions:
                 user_id = user_mention.strip().strip("<@!>")  # Remove mention formatting
                 try:
@@ -193,13 +201,12 @@ class SnipCog(commands.Cog):
 
         try:
             thread = await create_forum_thread(
-                ctx,
                 channel=channel,
                 title=title,
                 url=url,
                 message=message,
                 author=ctx.author,
-                tagged_users=tagged_users
+                additional_mentions=tagged_users
             )
             sentry_sdk.add_breadcrumb(
                 category="snip",
