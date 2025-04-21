@@ -27,10 +27,10 @@ class SnipCog(commands.Cog):
             ctx: discord.ApplicationContext,
             url: discord.Option(str, "The URL of the webpage to snip."),
             channel: discord.Option(discord.ForumChannel, "The Forum Channel to post to."),
-            mention: discord.Option(discord.User, "User to mention.", default=None, name="mention"),
+            title: discord.Option(str, "Title of the post (default: Webpage's title).", default=None, min_length=1, max_length=100),
             message: discord.Option(str, "Message body for the Snip.", default=None, min_length=1, max_length=1000),
+            mention: discord.Option(discord.User, "User to mention.", default=None, name="mention"),
             additional_mentions: discord.Option(str, "Additional user mentions (e.g., @user1 @user2)", default=[], name="mentions"),
-            title: discord.Option(str, "Title of the post (default: Webpage's title).", default=None, min_length=1, max_length=100)
     ):
         sentry_sdk.add_breadcrumb(
             category="snip",

@@ -2,6 +2,7 @@ import discord
 from typing import List
 
 from bot.util import build_mentioned_users_string
+from constants.messages import EMPTY_LINE_SYMBOL
 
 
 async def create_forum_thread(
@@ -11,31 +12,34 @@ async def create_forum_thread(
         mention: discord.User = None,
         author: discord.User = None,
         additional_mentions: List[discord.User] = None,
-        message: str = None,
+        message: str = "",
 ) -> discord.Thread:
-    if title is None:
-        return None
-
     try:
         embed = discord.Embed(
             title=title,
             url=url,
             color=discord.Color.green(),
         )
-        embed.set_author(name=f"Snipped by {author.display_name}",
-                         icon_url=author.avatar.url if author.avatar else None)
+        embed.set_author(name=f"Snipped by {author.display_name}", icon_url=author.avatar.url if author.avatar else None)
         embed.add_field(name="Snipped Link", value=url, inline=True)
         embed.set_footer(text=f"Snipped by {author.display_name}")
-
 
         if mention:
             mentions = build_mentioned_users_string(mention, additional_mentions)
             embed.add_field(name="Mentions", value=mentions, inline=False)
 
-        if message is None:
-            message = ""
+        def _construct_message():
+            parts = [
+                EMPTY_LINE_SYMBOL,
+                f"**{title.capitalize()}**",
+                f"{message}" if message else "",
+                f"Snipped URL:\n{url}",
+                f"Snipped by:\n{author.mention}",
+            ]
 
-        content_message = f"**\n{author}** snipped **{title.capitalize()}.**\n\n {message}\n\nLink:\n{url}\n\nSnipped by:\n {author.mention}"
+            return "\n\n".join(filter(bool, parts))
+
+        content_message = _construct_message()
 
         thread = await channel.create_thread(
             content=content_message,

@@ -1,5 +1,7 @@
 from discord import ApplicationContext, Interaction
 
+from constants.messages import EMPTY_LINE_SYMBOL, SUCCESS_EMOJI, FAILURE_EMOJI, WARNING_EMOJI
+
 
 class Responder:
     def __init__(self):
@@ -36,6 +38,8 @@ class Responder:
         """
         self._ensure_context()
 
+        message = EMPTY_LINE_SYMBOL + message
+
         if isinstance(self.ctx, Interaction):
             await self.ctx.response.send_message(message, ephemeral=ephemeral)
         elif isinstance(self.ctx, ApplicationContext):
@@ -45,43 +49,34 @@ class Responder:
 
     async def success(self, message: str):
         """
-        Sends a success response with the ✅ icon.
+        Sends a success response with the Success icon.
 
         Parameters:
             message (str): The message to send to the user.
         """
-        await self.respond(f"✅ {message}")
+        await self.respond(f"{SUCCESS_EMOJI} {message}")
 
     async def error(self, message: str):
         """
-        Sends an error response with the 🔴 icon.
+        Sends an error response with the Failure icon.
 
         Parameters:
             message (str): The message to send to the user.
         """
-        await self.respond(f"🔴 {message}")
+        await self.respond(f"{FAILURE_EMOJI} {message}")
 
     async def warning(self, message: str):
         """
-        Sends a warning response with the ⚠️ icon.
+        Sends a warning response with the Warning icon.
 
         Parameters:
             message (str): The message to send to the user.
         """
-        await self.respond(f"⚠️ {message}")
-
-    async def info(self, message: str):
-        """
-        Sends an informational response with the ℹ️ icon.
-
-        Parameters:
-            message (str): The message to send to the user.
-        """
-        await self.respond(f"ℹ️ {message}")
+        await self.respond(f"⚠{WARNING_EMOJI} {message}")
 
     async def clear(self, message: str):
         """
-        Sends a response without formatting as is.
+        Sends a response without formatting.
 
         Parameters:
             message (str): The message to send to the user.
