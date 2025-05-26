@@ -67,6 +67,34 @@ def _is_valid_domain(domain: str) -> bool:
     return bool(re.match(domain_pattern, domain))
 
 
+def extract_youtube_video_id(url: str) -> str | None:
+    """
+    Extract the video ID from a YouTube URL, supporting both 'youtube.com' and 'youtu.be' formats.
+    Strips all additional query parameters to ensure only the video ID is returned.
+
+    Args:
+        url (str): The YouTube URL.
+
+    Returns:
+        str | None: The extracted video ID, or None if it can't be determined.
+    """
+    parsed_url = urlparse(url)
+
+    if "youtube.com" in parsed_url.netloc:
+        query_params = parse_qs(parsed_url.query)
+        video_id = query_params.get("v", [None])[0]
+        return video_id if video_id else None
+
+    if "youtu.be" in parsed_url.netloc:
+        # Extract the path and remove any query parameters
+        video_id = parsed_url.path.lstrip("/")
+        if not video_id:
+            return None
+        # Split on the first occurrence of '?' and take the first part
+        return video_id.split("?")[0] or None
+
+    return None
+
 def remove_website_title(title: str, url: str) -> str:
     """
     Removes references to the website's name or domain from a title.
@@ -80,20 +108,24 @@ def remove_website_title(title: str, url: str) -> str:
     """
     try:
         parsed_url = urlparse(url)
-        domain_parts = parsed_url.netloc.split('.')
-
+        domain_parts = parsed_url.netloc.lower().split('.')
+        
+        # Filter out common prefixes and get domain parts
         filtered_parts = [part for part in domain_parts if part not in ['www']]
-        if len(filtered_parts) > 1:
-            base_name = filtered_parts[-2]
-        else:
-            base_name = filtered_parts[0]
-
-        patterns = [re.escape(base_name), re.escape('.'.join(filtered_parts))]
-
-        clean_title = re.sub(rf"\b(?:{'|'.join(patterns)})\b", '', title, flags=re.IGNORECASE).strip()
-        clean_title = re.sub(r"[-|:_]+$", '', clean_title).strip()
-
-        return clean_title
+        patterns = []
+        
+        # Add all possible domain combinations to patterns
+        for i in range(len(filtered_parts)):
+            pattern = '.'.join(filtered_parts[i:])
+            patterns.append(re.escape(pattern))
+        
+        # Create pattern for common separators
+        separators = '[-|:_]'
+        pattern = f"\\s*{separators}\\s*(?:{'|'.join(patterns)})\\s*$"
+        
+        # Remove domain and separators
+        clean_title = re.sub(pattern, '', title, flags=re.IGNORECASE)
+        return clean_title.strip()
     except Exception as e:
         print(f"Error cleaning title: {e}")
         return title
@@ -152,32 +184,6 @@ async def fetch_proxies() -> List[str]:
     except Exception as e:
         print(f"Error fetching proxies: {e}")
         return []
-
-
-def extract_youtube_video_id(url: str) -> str:
-    """
-    Extract the video ID from a YouTube URL, supporting both 'youtube.com' and 'youtu.be' formats.
-
-    Args:
-        url (str): The YouTube URL.
-
-    Returns:
-        str: The extracted video ID, or None if it can't be determined.
-    """
-    parsed_url = urlparse(url)
-
-    if "youtube.com" in parsed_url.netloc:
-        query_params = parse_qs(parsed_url.query)
-        if "v" in query_params:
-            return query_params["v"][0]
-
-    if "youtu.be" in parsed_url.netloc:
-        video_id = parsed_url.path.lstrip("/")
-        if "?" in video_id:
-            video_id = video_id.split("?")[0]
-        return video_id
-
-    return None
 
 
 async def fetch_youtube_video_title(url: str) -> Optional[str]:
@@ -327,7 +333,7 @@ def build_mentioned_users_string(mention: discord.User, additional_mentions: [di
     usernames.
 
     Parameters:
-        mention (discord.User): The initial mentioned user.
+        mention (discord.User): The initially mentioned user.
         additional_mentions (List[discord.User]): A list of additional mentioned users.
 
     Returns:
