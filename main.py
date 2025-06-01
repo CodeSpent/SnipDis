@@ -26,11 +26,11 @@ def main():
     # on initialization. There have been some
     # issues when spinning up the instance
     # where reporting times out as it comes
-    # back online which creates a lapse in
+    # back online, which creates a lapse in
     # reporting. This ensures that there's no
     # downtime when reinitializing.
     #
-    # We should find a more appropriate solution
+    # We should find a more appropriate solution, 
     # but this works for now.
     try:
         raise ValueError("Test error for Sentry")
