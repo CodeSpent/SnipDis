@@ -6,7 +6,8 @@ from bot.util import (
     fetch_webpage_title,
     validate_and_normalize_url,
     fetch_youtube_video_title,
-    get_domain_from_url
+    get_domain_from_url,
+    convert_string_id_to_discord_member
 )
 from services.discord import create_forum_thread
 from ui.modals import TitleInputModal
@@ -30,7 +31,7 @@ class SnipCog(commands.Cog):
             title: discord.Option(str, "Title of the post (default: Webpage's title).", default=None, min_length=1, max_length=100),
             message: discord.Option(str, "Message body for the Snip.", default=None, min_length=1, max_length=1000),
             mention: discord.Option(discord.User, "User to mention.", default=None, name="mention"),
-            additional_mentions: discord.Option(str, "Additional user mentions (e.g., @user1 @user2)", default=[], name="mentions"),
+            additional_mentions: discord.Option(str, "Additional user mentions (e.g., @user1 @user2)", default="", name="mentions"),
     ):
         sentry_sdk.add_breadcrumb(
             category="snip",
@@ -124,6 +125,8 @@ class SnipCog(commands.Cog):
 
                 await ctx.send_modal(modal)
 
+        additional_mentions = [convert_string_id_to_discord_member(ctx, user_id) for user_id in additional_mentions.split()]
+
         if not title:
             domain = get_domain_from_url(url)
             sentry_sdk.add_breadcrumb(
@@ -171,26 +174,6 @@ class SnipCog(commands.Cog):
         tagged_users = []
         if mention:
             tagged_users.append(mention)
-
-        if additional_mentions:
-            user_mentions = additional_mentions.split(" ")
-            for user_mention in user_mentions:
-                user_id = user_mention.strip().strip("<@!>")  # Remove mention formatting
-                try:
-                    fetched_user = await ctx.guild.fetch_member(int(user_id))
-                    if fetched_user:
-                        tagged_users.append(fetched_user)
-                except Exception:
-                    sentry_sdk.add_breadcrumb(
-                        category="snip",
-                        message="Failed to fetch additional user",
-                        data={"mentioned_user": user_id},
-                        level="warning"
-                    )
-                    await self.responder.warning(
-                        "Unable to fetch one or more users from `additional_users`. Ensure you use valid mentions."
-                    )
-                    return
 
         sentry_sdk.add_breadcrumb(
             category="snip",

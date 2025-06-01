@@ -3,7 +3,6 @@ import re
 from urllib.parse import urlparse, urlencode, parse_qs
 import aiohttp
 import discord
-
 from bot.config import DEV_GUILD_IDS
 from typing import List, Optional, Callable
 import asyncio
@@ -324,7 +323,7 @@ def get_domain_handler(url: str) -> Optional[Callable[[str], Optional[str]]]:
     return None
 
 
-def build_mentioned_users_string(mention: discord.User, additional_mentions: [discord.User]) -> str:
+def build_mentioned_users_string(mention: discord.User, additional_mentions: List[discord.User]) -> str:
     """
     Builds a concatenated string of mentioned users for a message or embed.
 
@@ -337,7 +336,7 @@ def build_mentioned_users_string(mention: discord.User, additional_mentions: [di
         additional_mentions (List[discord.User]): A list of additional mentioned users.
 
     Returns:
-    str: Comma-delimited string of mentioned users.
+        str: Comma-delimited string of mentioned users.
     """
     if not mention:
         raise ValueError("Initial mention user is required.")
@@ -350,10 +349,21 @@ def build_mentioned_users_string(mention: discord.User, additional_mentions: [di
     I would like to have multiple mentions in the autocomplete field, but
     to my knowledge this is not yet possible.
     """
-    if not additional_mentions:
-        mentions = [mention]
-    elif mention not in additional_mentions:
-        mentions = [mention] + additional_mentions
+    mentions = []
 
-    mentions_string = ", ".join([f"<@{mention.id}>" for mention in mentions])
+    if mention:
+        mentions.append(mention)
+
+    if additional_mentions:
+        mentions.extend(additional_mentions)
+
+    mentions_string = ", ".join(
+        [f"<@{mention}>" if isinstance(mention, str) else f"<@{mention.id}>" for mention in mentions])
     return mentions_string
+
+
+
+def convert_string_id_to_discord_member(ctx: discord.ApplicationContext, user_id: str) -> discord.User | None:
+    user_id = user_id.strip().strip('<!@>')
+    member = ctx.guild.get_member(int(user_id))
+    return member
