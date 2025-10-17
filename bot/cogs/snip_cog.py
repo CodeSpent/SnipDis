@@ -174,11 +174,13 @@ class SnipCog(commands.Cog):
         tagged_users = []
         if mention:
             tagged_users.append(mention)
+        if additional_mentions:
+            tagged_users.extend(additional_mentions)
 
         sentry_sdk.add_breadcrumb(
             category="snip",
             message="User mentions processed",
-            data={"tagged_users": [user.name for user in tagged_users]},
+            data={"tagged_users": [user.name for user in tagged_users if user]},
             level="info"
         )
 
@@ -189,7 +191,8 @@ class SnipCog(commands.Cog):
                 url=url,
                 message=message,
                 author=ctx.author,
-                additional_mentions=tagged_users
+                mention=mention,
+                additional_mentions=additional_mentions
             )
             sentry_sdk.add_breadcrumb(
                 category="snip",

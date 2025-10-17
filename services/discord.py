@@ -41,16 +41,23 @@ async def create_forum_thread(
 
         content_message = _construct_message()
 
+        # Combine all mentioned users for notifications
+        all_mentioned_users = []
+        if mention:
+            all_mentioned_users.append(mention)
+        if additional_mentions:
+            all_mentioned_users.extend(additional_mentions)
+
         thread = await channel.create_thread(
             content=content_message,
             name=title.capitalize(),
-            allowed_mentions=discord.AllowedMentions(users=additional_mentions)
+            allowed_mentions=discord.AllowedMentions(users=all_mentioned_users) if all_mentioned_users else discord.AllowedMentions.none()
         )
 
         if thread:
             await thread.send(
                 embed=embed,
-                allowed_mentions=discord.AllowedMentions(users=additional_mentions)
+                allowed_mentions=discord.AllowedMentions(users=all_mentioned_users) if all_mentioned_users else discord.AllowedMentions.none()
             )
 
         """
@@ -58,8 +65,8 @@ async def create_forum_thread(
         a proper notification & a thread indicator in their server list by
         creating a temporary comment in the new thread then deleting it.
         """
-        if additional_mentions:
-            mention_message = " ".join([user.mention for user in additional_mentions])
+        if all_mentioned_users:
+            mention_message = " ".join([user.mention for user in all_mentioned_users])
             temp_message = await thread.send(content=mention_message)
             await temp_message.delete()
 
