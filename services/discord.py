@@ -13,6 +13,7 @@ async def create_forum_thread(
         author: discord.User = None,
         additional_mentions: List[discord.User] = None,
         message: str = "",
+        applied_tags: List[discord.ForumTag] = None,
 ) -> discord.Thread:
     try:
         embed = discord.Embed(
@@ -51,7 +52,8 @@ async def create_forum_thread(
         thread = await channel.create_thread(
             content=content_message,
             name=title.capitalize(),
-            allowed_mentions=discord.AllowedMentions(users=all_mentioned_users) if all_mentioned_users else discord.AllowedMentions.none()
+            allowed_mentions=discord.AllowedMentions(users=all_mentioned_users) if all_mentioned_users else discord.AllowedMentions.none(),
+            applied_tags=applied_tags if applied_tags else None
         )
 
         if thread:

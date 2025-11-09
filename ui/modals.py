@@ -14,7 +14,8 @@ class TitleInputModal(discord.ui.Modal):
             url: str,
             message: str,
             mention: discord.User,
-            additional_mentions: List[discord.User]
+            additional_mentions: List[discord.User],
+            applied_tags: List[discord.ForumTag] = None
     ):
         super().__init__(title="Provide a Title for the Post")
 
@@ -34,6 +35,7 @@ class TitleInputModal(discord.ui.Modal):
         self.mention = mention
         self.additional_mentions = additional_mentions
         self.message = message
+        self.applied_tags = applied_tags
 
         self.responder = Responder()
 
@@ -55,7 +57,8 @@ class TitleInputModal(discord.ui.Modal):
                 message=self.message,
                 author=self.ctx.author,
                 mention=self.mention,
-                additional_mentions=self.additional_mentions
+                additional_mentions=self.additional_mentions,
+                applied_tags=self.applied_tags if self.applied_tags else None
             )
             sentry_sdk.capture_message(
                 f"Snip successfully created: {title}",

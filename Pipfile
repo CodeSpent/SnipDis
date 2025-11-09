@@ -13,6 +13,10 @@ newspaper4k = "*"
 sentry-sdk = "*"
 
 [dev-packages]
+pytest = "*"
+pytest-asyncio = "*"
+pytest-mock = "*"
+pytest-cov = "*"
 
 [requires]
 python_version = "3.12"

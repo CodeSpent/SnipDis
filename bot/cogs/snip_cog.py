@@ -18,6 +18,65 @@ class SnipCog(commands.Cog):
         self.bot = bot
         self.responder = Responder()
 
+    async def tag_autocomplete(self, ctx: discord.AutocompleteContext):
+        """
+        Autocomplete function for forum tags.
+        Returns available tags from the selected forum channel.
+        """
+        # Get the forum channel from the current interaction options
+        channel_id_or_obj = ctx.options.get("channel")
+
+        if not channel_id_or_obj:
+            # User hasn't selected a channel yet - provide a helpful message
+            return [discord.OptionChoice(name="⚠️ Please select a channel first", value="")]
+
+        # If channel is a string (ID), we need to fetch the actual channel object
+        if isinstance(channel_id_or_obj, str):
+            try:
+                channel_id = int(channel_id_or_obj)
+                channel = ctx.bot.get_channel(channel_id)
+
+                if not channel:
+                    # Try fetching from API if not in cache
+                    channel = await ctx.bot.fetch_channel(channel_id)
+
+            except (ValueError, discord.HTTPException) as e:
+                sentry_sdk.add_breadcrumb(
+                    category="tag_autocomplete",
+                    message="Failed to resolve channel from ID",
+                    data={
+                        "channel_id": channel_id_or_obj,
+                        "error": str(e)
+                    },
+                    level="error"
+                )
+                return [discord.OptionChoice(name="⚠️ Could not fetch channel", value="")]
+        else:
+            channel = channel_id_or_obj
+
+        # Check if channel has available_tags attribute (forum-specific)
+        if not hasattr(channel, 'available_tags'):
+            return [discord.OptionChoice(name="⚠️ Selected channel is not a forum", value="")]
+
+        # Check if the forum has any tags configured
+        if not channel.available_tags:
+            return [discord.OptionChoice(name="⚠️ This forum has no tags configured", value="")]
+
+        # Get current user input
+        current_input = ctx.value.lower() if ctx.value else ""
+
+        # Filter and return matching tags
+        choices = []
+        for tag in channel.available_tags:
+            if current_input in tag.name.lower():
+                choices.append(discord.OptionChoice(name=tag.name, value=tag.name))
+
+        # If no tags match the input, show a helpful message
+        if not choices and current_input:
+            return [discord.OptionChoice(name=f"⚠️ No tags match '{current_input}'", value="")]
+
+        # Discord limits autocomplete to 25 choices
+        return choices[:25]
 
     @discord.slash_command(
         name="snip",
@@ -32,6 +91,7 @@ class SnipCog(commands.Cog):
             message: discord.Option(str, "Message body for the Snip.", default=None, min_length=1, max_length=1000),
             mention: discord.Option(discord.User, "User to mention.", default=None, name="mention"),
             additional_mentions: discord.Option(str, "Additional user mentions (e.g., @user1 @user2)", default="", name="mentions"),
+            tags: discord.Option(str, "Tags to apply (comma-separated)", default=None, autocomplete=tag_autocomplete),
     ):
         sentry_sdk.add_breadcrumb(
             category="snip",
@@ -46,6 +106,7 @@ class SnipCog(commands.Cog):
                 "additional_users": additional_mentions,
                 "mentioned_user": mention.name if mention else None,
                 "message": message,
+                "tags": tags,
                 "issuer": {
                     "id": ctx.author.id,
                     "name": ctx.author.name,
@@ -114,7 +175,8 @@ class SnipCog(commands.Cog):
                     url=url,
                     message=message,
                     mention=mention,
-                    additional_mentions=additional_mentions
+                    additional_mentions=additional_mentions,
+                    applied_tags=applied_tags
                 )
 
                 modal.sentry_context = {
@@ -126,6 +188,28 @@ class SnipCog(commands.Cog):
                 await ctx.send_modal(modal)
 
         additional_mentions = [convert_string_id_to_discord_member(ctx, user_id) for user_id in additional_mentions.split()]
+
+        # Parse and validate tags
+        applied_tags = []
+        if tags:
+            # Split comma-separated tag names
+            tag_names = [tag.strip() for tag in tags.split(',') if tag.strip()]
+
+            # Match tag names to actual ForumTag objects
+            for tag_name in tag_names:
+                matching_tag = next((tag for tag in channel.available_tags if tag.name == tag_name), None)
+                if matching_tag:
+                    applied_tags.append(matching_tag)
+
+            sentry_sdk.add_breadcrumb(
+                category="snip",
+                message="Tags parsed and validated",
+                data={
+                    "requested_tags": tag_names,
+                    "applied_tags": [tag.name for tag in applied_tags]
+                },
+                level="info"
+            )
 
         if not title:
             domain = get_domain_from_url(url)
@@ -192,7 +276,8 @@ class SnipCog(commands.Cog):
                 message=message,
                 author=ctx.author,
                 mention=mention,
-                additional_mentions=additional_mentions
+                additional_mentions=additional_mentions,
+                applied_tags=applied_tags if applied_tags else None
             )
             sentry_sdk.add_breadcrumb(
                 category="snip",
