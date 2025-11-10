@@ -127,6 +127,82 @@ class ForumsCog(commands.Cog):
         except Exception as e:
             await self.responder.error(f"An unexpected error occurred: {e}")
 
+    @commands.slash_command(
+        name="tag",
+        description="Create a new tag for a Forum channel"
+    )
+    async def create_tag(
+            self,
+            ctx: ApplicationContext,
+            channel: Option(discord.ForumChannel, "The forum channel to add the tag to."),
+            name: Option(str, "The name of the tag (max 20 characters).", max_length=20),
+            emoji: Option(str, "Emoji for the tag (e.g., 🏷️ or :tag:).", required=False),
+            moderated: Option(bool, "Require moderation for this tag.", default=False)
+    ):
+        self.responder.set_context(ctx)
+
+        if not ctx.author.guild_permissions.manage_channels:
+            await self.responder.error("You do not have permission to create tags.")
+            return
+
+        await ctx.defer(ephemeral=True)
+
+        guild: Guild = ctx.guild
+
+        if not guild:
+            await self.responder.error("Could not find server with provided id.")
+            return
+
+        # Validate channel type
+        if not isinstance(channel, discord.ForumChannel):
+            await self.responder.error("The specified channel is not a forum channel.")
+            return
+
+        # Check if tag name already exists
+        existing_tags = channel.available_tags
+        if any(tag.name.lower() == name.lower() for tag in existing_tags):
+            await self.responder.error(f"A tag with the name `{name}` already exists in {channel.mention}.")
+            return
+
+        # Check Discord's limit of 20 tags per forum
+        if len(existing_tags) >= 20:
+            await self.responder.error(f"Forum channel {channel.mention} has reached the maximum of 20 tags.")
+            return
+
+        try:
+            # Create the new tag object
+            # Note: We need to create a new ForumTag, but Discord requires editing the channel
+            # with the full list of tags including the new one
+            new_tag_data = {
+                "name": name,
+                "moderated": moderated
+            }
+
+            # Add emoji if provided
+            if emoji:
+                # Try to handle both unicode emoji and custom emoji format
+                new_tag_data["emoji"] = emoji
+
+            # Create new tag by editing the channel with updated tags list
+            # We need to append the new tag to existing ones
+            updated_tags = list(existing_tags) + [discord.ForumTag(**new_tag_data)]
+
+            await channel.edit(available_tags=updated_tags)
+
+            emoji_display = f" {emoji}" if emoji else ""
+            await self.responder.success(
+                f"Successfully created tag `{name}`{emoji_display} in {channel.mention}."
+            )
+        except discord.Forbidden:
+            await self.responder.error("Missing permissions to edit the forum channel.")
+        except discord.HTTPException as e:
+            if "emoji" in str(e).lower():
+                await self.responder.error(f"Invalid emoji format. Use a standard emoji or Discord emoji format like :emoji_name:.")
+            else:
+                await self.responder.error(f"Discord API error: {e}")
+        except Exception as e:
+            await self.responder.error(f"An unexpected error occurred: {e}")
+
 
 def setup(bot):
     bot.add_cog(ForumsCog(bot))
