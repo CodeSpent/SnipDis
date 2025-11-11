@@ -154,7 +154,8 @@ class TestTagAutocomplete:
         assert isinstance(choices[0], discord.OptionChoice)
         assert "no tags match" in choices[0].name.lower()
         assert "nonexistent" in choices[0].name.lower()
-        assert choices[0].value == ""
+        # Value should preserve user's current input (allows them to keep typing or delete)
+        assert choices[0].value == "nonexistent"
 
     @pytest.mark.asyncio
     async def test_autocomplete_resolves_channel_from_string_id(
@@ -174,6 +175,129 @@ class TestTagAutocomplete:
         assert all(isinstance(choice, discord.OptionChoice) for choice in choices)
         # Verify get_channel was called with the correct ID
         mock_bot.get_channel.assert_called_once_with(123456789)
+
+    @pytest.mark.asyncio
+    async def test_autocomplete_with_single_tag_selected_and_typing_second(
+        self, mock_bot, mock_autocomplete_context
+    ):
+        """Test autocomplete when user has selected one tag and is typing a second."""
+        cog = SnipCog(mock_bot)
+        # User has selected "Bug" and is now typing "feat"
+        mock_autocomplete_context.value = "Bug, feat"
+
+        choices = await cog.tag_autocomplete(mock_autocomplete_context)
+
+        # Should only return "Feature Request" (matches "feat")
+        assert len(choices) == 1
+        # Name should show the full selection for clarity
+        assert choices[0].name == "Bug, Feature Request"
+        # Value should preserve the previous selection
+        assert choices[0].value == "Bug, Feature Request"
+
+    @pytest.mark.asyncio
+    async def test_autocomplete_excludes_already_selected_tags(
+        self, mock_bot, mock_autocomplete_context
+    ):
+        """Test that already-selected tags are excluded from suggestions."""
+        cog = SnipCog(mock_bot)
+        # User has selected "Bug" and is now typing ""
+        mock_autocomplete_context.value = "Bug, "
+
+        choices = await cog.tag_autocomplete(mock_autocomplete_context)
+
+        # Should return all tags except "Bug"
+        tag_names = [choice.name for choice in choices]
+        # Names now show full selection, so check that Bug doesn't appear alone
+        # but does appear as a prefix in all options
+        assert all("Bug, " in name for name in tag_names)
+        # Verify each expected tag appears in the results
+        assert any("Feature Request" in name for name in tag_names)
+        assert any("Documentation" in name for name in tag_names)
+        assert any("Question" in name for name in tag_names)
+        assert any("Help Wanted" in name for name in tag_names)
+
+    @pytest.mark.asyncio
+    async def test_autocomplete_with_multiple_tags_selected(
+        self, mock_bot, mock_autocomplete_context
+    ):
+        """Test autocomplete when multiple tags are already selected."""
+        cog = SnipCog(mock_bot)
+        # User has selected "Bug" and "Documentation", now typing "quest"
+        mock_autocomplete_context.value = "Bug, Documentation, quest"
+
+        choices = await cog.tag_autocomplete(mock_autocomplete_context)
+
+        # Should return "Question" (matches "quest"), excluding already selected tags
+        assert len(choices) >= 1
+        # Find the Question choice
+        question_choice = next((c for c in choices if "Question" in c.name), None)
+        assert question_choice is not None
+        # Name should show the full accumulated selection
+        assert question_choice.name == "Bug, Documentation, Question"
+        # Value should preserve all previous selections
+        assert question_choice.value == "Bug, Documentation, Question"
+
+    @pytest.mark.asyncio
+    async def test_autocomplete_case_insensitive_duplicate_detection(
+        self, mock_bot, mock_autocomplete_context
+    ):
+        """Test that duplicate detection is case-insensitive."""
+        cog = SnipCog(mock_bot)
+        # User has typed "bug" in lowercase
+        mock_autocomplete_context.value = "bug, "
+
+        choices = await cog.tag_autocomplete(mock_autocomplete_context)
+
+        # "Bug" should be excluded even though it was typed as "bug"
+        tag_names = [choice.name for choice in choices]
+        assert "Bug" not in tag_names
+
+    @pytest.mark.asyncio
+    async def test_autocomplete_with_trailing_comma_and_space(
+        self, mock_bot, mock_autocomplete_context, mock_forum_tags
+    ):
+        """Test autocomplete with trailing comma and space shows all remaining tags."""
+        cog = SnipCog(mock_bot)
+        mock_autocomplete_context.value = "Bug, "
+
+        choices = await cog.tag_autocomplete(mock_autocomplete_context)
+
+        # Should show all tags except "Bug"
+        assert len(choices) == len(mock_forum_tags) - 1
+        assert all(choice.name != "Bug" for choice in choices)
+
+    @pytest.mark.asyncio
+    async def test_autocomplete_preserves_whitespace_in_prefix(
+        self, mock_bot, mock_autocomplete_context
+    ):
+        """Test that the comma-space format is preserved in returned values."""
+        cog = SnipCog(mock_bot)
+        mock_autocomplete_context.value = "Bug, doc"
+
+        choices = await cog.tag_autocomplete(mock_autocomplete_context)
+
+        # Should return Documentation with proper prefix
+        assert len(choices) == 1
+        # Name should show full selection
+        assert choices[0].name == "Bug, Documentation"
+        assert choices[0].value == "Bug, Documentation"
+
+    @pytest.mark.asyncio
+    async def test_autocomplete_with_empty_segments(
+        self, mock_bot, mock_autocomplete_context
+    ):
+        """Test autocomplete handles empty segments (multiple commas) gracefully."""
+        cog = SnipCog(mock_bot)
+        mock_autocomplete_context.value = "Bug,  ,  , feat"
+
+        choices = await cog.tag_autocomplete(mock_autocomplete_context)
+
+        # Should match "Feature Request" and preserve only valid previous tags
+        assert len(choices) == 1
+        # Name should show full selection
+        assert choices[0].name == "Bug, Feature Request"
+        # Empty segments should be filtered out in the prefix
+        assert choices[0].value == "Bug, Feature Request"
 
 
 class TestTagParsing:

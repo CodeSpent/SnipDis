@@ -22,6 +22,7 @@ class SnipCog(commands.Cog):
         """
         Autocomplete function for forum tags.
         Returns available tags from the selected forum channel.
+        Supports comma-separated multi-tag selection.
         """
         # Get the forum channel from the current interaction options
         channel_id_or_obj = ctx.options.get("channel")
@@ -62,18 +63,48 @@ class SnipCog(commands.Cog):
         if not channel.available_tags:
             return [discord.OptionChoice(name="⚠️ This forum has no tags configured", value="")]
 
-        # Get current user input
-        current_input = ctx.value.lower() if ctx.value else ""
+        # Parse comma-separated input to support multiple tag selection
+        current_value = ctx.value if ctx.value else ""
 
-        # Filter and return matching tags
+        # Split by comma and extract already-selected tags and the current input
+        tag_segments = [tag.strip() for tag in current_value.split(',')]
+
+        # The last segment is what the user is currently typing
+        current_input = tag_segments[-1].lower() if tag_segments else ""
+
+        # Everything before the last segment are already-selected tags (filter out empty strings)
+        selected_tags = [tag for tag in tag_segments[:-1] if tag] if len(tag_segments) > 1 else []
+
+        # Prefix to preserve previously selected tags
+        prefix = ', '.join(selected_tags)
+        if prefix:
+            prefix += ', '
+
+        # Get set of already selected tag names (case-insensitive) to avoid duplicates
+        selected_tag_names = {tag.lower() for tag in selected_tags}
+
+        # Filter and return matching tags that haven't been selected yet
         choices = []
         for tag in channel.available_tags:
+            # Skip tags that are already selected
+            if tag.name.lower() in selected_tag_names:
+                continue
+
+            # Match against current input
             if current_input in tag.name.lower():
-                choices.append(discord.OptionChoice(name=tag.name, value=tag.name))
+                # Return the full value with prefix to preserve previous selections
+                full_value = prefix + tag.name
+                # Show the complete selection in the dropdown for clarity
+                # If there are previous selections, show them in the name too
+                if selected_tags:
+                    display_name = f"{', '.join(selected_tags)}, {tag.name}"
+                else:
+                    display_name = tag.name
+                choices.append(discord.OptionChoice(name=display_name, value=full_value))
 
         # If no tags match the input, show a helpful message
         if not choices and current_input:
-            return [discord.OptionChoice(name=f"⚠️ No tags match '{current_input}'", value="")]
+            return [discord.OptionChoice(name=f"⚠️ No tags match '{current_input}'", value=current_value)]
 
         # Discord limits autocomplete to 25 choices
         return choices[:25]

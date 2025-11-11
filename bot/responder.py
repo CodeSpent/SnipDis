@@ -1,6 +1,7 @@
+import discord
 from discord import ApplicationContext, Interaction
 
-from constants.messages import EMPTY_LINE_SYMBOL, SUCCESS_EMOJI, FAILURE_EMOJI, WARNING_EMOJI
+from constants.messages import EMPTY_LINE_SYMBOL
 
 
 class Responder:
@@ -28,6 +29,23 @@ class Responder:
         if not self.ctx:
             raise ValueError("Context is not set. Use 'set_context(ctx)' before calling this method.")
 
+    async def _respond_with_embed(self, embed: discord.Embed, ephemeral: bool = True):
+        """
+        Send an embed response, handling both ApplicationContext and Interaction.
+
+        Parameters:
+            embed (discord.Embed): The embed to send.
+            ephemeral (bool): Whether the message should be ephemeral (visible only to the user).
+        """
+        self._ensure_context()
+
+        if isinstance(self.ctx, Interaction):
+            await self.ctx.response.send_message(embed=embed, ephemeral=ephemeral)
+        elif isinstance(self.ctx, ApplicationContext):
+            await self.ctx.respond(embed=embed, ephemeral=ephemeral)
+        else:
+            raise ValueError("Unsupported context type. Only ApplicationContext and Interaction are supported.")
+
     async def respond(self, message: str, ephemeral: bool = True):
         """
         General-purpose response method to handle both ApplicationContext and Interaction.
@@ -49,30 +67,33 @@ class Responder:
 
     async def success(self, message: str):
         """
-        Sends a success response with the Success icon.
+        Sends a success response with a green embed.
 
         Parameters:
             message (str): The message to send to the user.
         """
-        await self.respond(f"{SUCCESS_EMOJI} {message}")
+        embed = discord.Embed(description=message, color=discord.Color.green())
+        await self._respond_with_embed(embed)
 
     async def error(self, message: str):
         """
-        Sends an error response with the Failure icon.
+        Sends an error response with a red embed.
 
         Parameters:
             message (str): The message to send to the user.
         """
-        await self.respond(f"{FAILURE_EMOJI} {message}")
+        embed = discord.Embed(description=message, color=discord.Color.red())
+        await self._respond_with_embed(embed)
 
     async def warning(self, message: str):
         """
-        Sends a warning response with the Warning icon.
+        Sends a warning response with an orange embed.
 
         Parameters:
             message (str): The message to send to the user.
         """
-        await self.respond(f"⚠{WARNING_EMOJI} {message}")
+        embed = discord.Embed(description=message, color=discord.Color.orange())
+        await self._respond_with_embed(embed)
 
     async def clear(self, message: str):
         """

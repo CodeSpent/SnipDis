@@ -173,19 +173,16 @@ class ForumsCog(commands.Cog):
             # Create the new tag object
             # Note: We need to create a new ForumTag, but Discord requires editing the channel
             # with the full list of tags including the new one
-            new_tag_data = {
-                "name": name,
-                "moderated": moderated
-            }
-
-            # Add emoji if provided
-            if emoji:
-                # Try to handle both unicode emoji and custom emoji format
-                new_tag_data["emoji"] = emoji
+            # emoji is required but uses empty string for tags without emojis
+            new_tag = discord.ForumTag(
+                name=name,
+                emoji=emoji if emoji else "",
+                moderated=moderated
+            )
 
             # Create new tag by editing the channel with updated tags list
             # We need to append the new tag to existing ones
-            updated_tags = list(existing_tags) + [discord.ForumTag(**new_tag_data)]
+            updated_tags = list(existing_tags) + [new_tag]
 
             await channel.edit(available_tags=updated_tags)
 
