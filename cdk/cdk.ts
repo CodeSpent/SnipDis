@@ -11,15 +11,13 @@ dotenv.config({ path: path.resolve(__dirname, '../.env') });
 const app = new cdk.App();
 
 // Get parameters from environment variables or use defaults
+// NOTE: Secrets are managed directly in AWS Secrets Manager, not through CDK
+// To update: aws secretsmanager put-secret-value --secret-id discord-bot/secrets --secret-string '{"bot_token":"...","sentry_dsn":"...","youtube_api_key":"...","proxyscrape_api_key":"..."}'
 const stackName = process.env.STACK_NAME || 'snipdis-bot';
 const region = process.env.AWS_REGION || 'us-east-1';
+const account = process.env.CDK_DEFAULT_ACCOUNT || process.env.AWS_ACCOUNT_ID;
 const instanceType = process.env.INSTANCE_TYPE || 't3.micro';
 const keyPairName = process.env.KEY_PAIR;
-const botToken = process.env.BOT_TOKEN;
-const topggToken = process.env.TOPGG_TOKEN;
-const sentryDsn = process.env.SENTRY_DSN || '';
-const youtubeApiKey = process.env.YOUTUBE_API_KEY || '';
-const proxyscrapeApiKey = process.env.PROXYSCRAPE_API_KEY || '';
 const devGuildIds = process.env.GUILD_IDS || '';
 const env = process.env.ENV || 'PROD';
 
@@ -29,26 +27,11 @@ if (!keyPairName) {
   process.exit(1);
 }
 
-if (!botToken) {
-  console.error('Error: BOT_TOKEN environment variable is required');
-  process.exit(1);
-}
-
-if (!topggToken) {
-  console.error('Error: TOPGG_TOKEN environment variable is required');
-  process.exit(1);
-}
-
 // Create the stack with parameters
 new SnipDisStack(app, stackName, {
-  env: { region },
+  env: { account, region },
   instanceType,
   keyPairName,
-  botToken,
-  topggToken,
-  sentryDsn,
-  youtubeApiKey,
-  proxyscrapeApiKey,
   devGuildIds,
   environment: env,
 });

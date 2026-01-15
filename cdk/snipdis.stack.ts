@@ -2,17 +2,12 @@ import * as cdk from 'aws-cdk-lib';
 import { Construct } from 'constructs';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import * as iam from 'aws-cdk-lib/aws-iam';
-import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 import * as ssm from 'aws-cdk-lib/aws-ssm';
+import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
 
 export interface SnipDisStackProps extends cdk.StackProps {
   instanceType: string;
   keyPairName: string;
-  botToken: string;
-  topggToken: string;
-  sentryDsn?: string;
-  youtubeApiKey?: string;
-  proxyscrapeApiKey?: string;
   devGuildIds?: string;
   environment?: string;
 }
@@ -21,56 +16,21 @@ export class SnipDisStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props: SnipDisStackProps) {
     super(scope, id, props);
 
-    // DynamoDB Table for Vote Reminders
-    const voteRemindersTable = new dynamodb.Table(this, 'VoteRemindersTable', {
-      tableName: 'vote-reminders',
-      billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
-      partitionKey: { name: 'user_id', type: dynamodb.AttributeType.NUMBER },
-      sortKey: { name: 'bot_id', type: dynamodb.AttributeType.NUMBER },
-      timeToLiveAttribute: 'expire_time',
-    });
+    // Reference pre-existing secret in AWS Secrets Manager (retained from previous stack)
+    // To update secrets, use: aws secretsmanager put-secret-value --secret-id discord-bot/secrets --secret-string '{"bot_token":"...","sentry_dsn":"...","youtube_api_key":"...","proxyscrape_api_key":"..."}'
+    const botSecrets = secretsmanager.Secret.fromSecretNameV2(
+      this, 'BotSecrets', 'discord-bot/secrets'
+    );
 
-    // SSM Parameters for storing configuration securely
-    const botTokenParam = new ssm.StringParameter(this, 'BotTokenParameter', {
-      parameterName: '/discord/bot_token',
-      stringValue: props.botToken,
-      type: ssm.ParameterType.SECURE_STRING,
-    });
-
-    const topggTokenParam = new ssm.StringParameter(this, 'TopGGTokenParameter', {
-      parameterName: '/discord/topgg_token',
-      stringValue: props.topggToken,
-      type: ssm.ParameterType.SECURE_STRING,
-    });
-
-    const sentryDsnParam = new ssm.StringParameter(this, 'SentryDSNParameter', {
-      parameterName: '/discord/sentry_dsn',
-      stringValue: props.sentryDsn || '',
-      type: ssm.ParameterType.SECURE_STRING,
-    });
-
-    const youtubeApiKeyParam = new ssm.StringParameter(this, 'YouTubeAPIKeyParameter', {
-      parameterName: '/discord/youtube_api_key',
-      stringValue: props.youtubeApiKey || '',
-      type: ssm.ParameterType.SECURE_STRING,
-    });
-
-    const proxyscrapeApiKeyParam = new ssm.StringParameter(this, 'ProxyScrapeAPIKeyParameter', {
-      parameterName: '/discord/proxyscrape_api_key',
-      stringValue: props.proxyscrapeApiKey || '',
-      type: ssm.ParameterType.SECURE_STRING,
-    });
-
+    // Non-secret configuration in SSM Parameter Store
     const devGuildIdsParam = new ssm.StringParameter(this, 'DevGuildIDsParameter', {
       parameterName: '/discord/dev_guild_ids',
       stringValue: props.devGuildIds || '',
-      type: ssm.ParameterType.STRING,
     });
 
     const envParam = new ssm.StringParameter(this, 'EnvParameter', {
       parameterName: '/discord/env',
       stringValue: props.environment || 'PROD',
-      type: ssm.ParameterType.STRING,
     });
 
     // IAM Role for EC2 Instance
@@ -81,29 +41,19 @@ export class SnipDisStack extends cdk.Stack {
       ],
     });
 
-    // Add permissions for DynamoDB
+
+    // Add permissions for Secrets Manager
     botInstanceRole.addToPolicy(new iam.PolicyStatement({
       effect: iam.Effect.ALLOW,
-      actions: [
-        'dynamodb:PutItem',
-        'dynamodb:GetItem',
-        'dynamodb:DeleteItem',
-        'dynamodb:Query',
-        'dynamodb:Scan',
-      ],
-      resources: [voteRemindersTable.tableArn],
+      actions: ['secretsmanager:GetSecretValue'],
+      resources: [botSecrets.secretArn],
     }));
 
-    // Add permissions for SSM Parameters
+    // Add permissions for SSM Parameters (non-secret config)
     botInstanceRole.addToPolicy(new iam.PolicyStatement({
       effect: iam.Effect.ALLOW,
       actions: ['ssm:GetParameter'],
       resources: [
-        botTokenParam.parameterArn,
-        topggTokenParam.parameterArn,
-        sentryDsnParam.parameterArn,
-        youtubeApiKeyParam.parameterArn,
-        proxyscrapeApiKeyParam.parameterArn,
         devGuildIdsParam.parameterArn,
         envParam.parameterArn,
       ],
@@ -122,123 +72,131 @@ export class SnipDisStack extends cdk.Stack {
       'Allow SSH access'
     );
 
+    // Create new KeyPair per new CDK guidelines
+    const keyPair = new ec2.KeyPair(this, 'KeyPair',
+        {
+          type: ec2.KeyPairType.ED25519,
+          format: ec2.KeyPairFormat.PEM,
+        });
+
     // EC2 Instance
     const botInstance = new ec2.Instance(this, 'BotInstance', {
       vpc: ec2.Vpc.fromLookup(this, 'DefaultVPC2', { isDefault: true }),
       instanceType: new ec2.InstanceType(props.instanceType),
-      machineImage: ec2.MachineImage.latestAmazonLinux2(),
-      keyName: props.keyPairName,
+      machineImage: ec2.MachineImage.latestAmazonLinux2023(),
+      keyPair: keyPair,
       role: botInstanceRole,
       securityGroup: botSecurityGroup,
       userData: ec2.UserData.custom(`#!/bin/bash -xe
-yum update -y
-yum install -y python3-pip git
-pip3 install pipenv
+# Deployment timestamp: ${new Date().toISOString()}
+dnf update -y
+dnf install -y python3.11 python3.11-pip git
 
 # Create bot directory
 mkdir -p /opt/discord-bot
 cd /opt/discord-bot
 
 # Clone your repository
-git clone https://github.com/codespent/discord-web-clipper.git .
+git clone https://github.com/CodeSpent/SnipDis.git .
 
-# Setup Python environment
-pip3 install -r requirements.txt
+# Create virtual environment and install dependencies
+python3.11 -m venv /opt/discord-bot/venv
+source /opt/discord-bot/venv/bin/activate
+pip install --upgrade pip
+pip install -r requirements.txt
+pip install boto3 py-cord
 
-# Update requirements.txt to include all necessary dependencies
-cat > /opt/discord-bot/requirements.txt << 'EOL'
-aiohttp==3.11.16
-asyncio==3.4.3
-beautifulsoup4==4.13.3
-boto3==1.34.0
-py-cord>=2.0.0
-python-dotenv==1.1.0
-requests==2.32.3
-sentry-sdk~=2.25.1
-newspaper4k>=0.1.0
-dblpy>=0.4.0
-EOL
-
-# Create script to generate environment file from SSM parameters
-# This script fetches the bot token and Top.gg token from SSM Parameter Store
-# and writes them to a .env file for the bot to use
+# Create script to generate environment file from Secrets Manager and SSM
 cat > /opt/discord-bot/generate_env.py << 'EOL'
 #!/usr/bin/env python3
 import boto3
-import os
+import json
 import sys
 import time
+import urllib.request
+
+def get_instance_region():
+    """Get region from EC2 instance metadata"""
+    try:
+        # Get token for IMDSv2
+        req = urllib.request.Request(
+            'http://169.254.169.254/latest/api/token',
+            headers={'X-aws-ec2-metadata-token-ttl-seconds': '21600'},
+            method='PUT'
+        )
+        with urllib.request.urlopen(req, timeout=2) as response:
+            token = response.read().decode()
+
+        # Get availability zone
+        req = urllib.request.Request(
+            'http://169.254.169.254/latest/meta-data/placement/availability-zone',
+            headers={'X-aws-ec2-metadata-token': token}
+        )
+        with urllib.request.urlopen(req, timeout=2) as response:
+            az = response.read().decode()
+
+        # Remove the trailing letter to get region
+        return az[:-1]
+    except Exception as e:
+        print(f"Failed to get region from metadata: {e}")
+        return 'us-east-1'
 
 def main():
     try:
         print("Generating environment file...")
 
-        # Initialize SSM client
-        ssm = boto3.client('ssm')
-
-        # Function to get parameter with retry logic
-        def get_parameter_with_retry(param_name, required=True):
-            max_retries = 3
-            retry_count = 0
-            param_value = None
-
-            while retry_count < max_retries:
-                try:
-                    print(f"Attempting to get {param_name} (attempt {retry_count + 1}/{max_retries})...")
-                    param_response = ssm.get_parameter(Name=param_name, WithDecryption=True)
-                    param_value = param_response['Parameter']['Value']
-                    print(f"Successfully retrieved {param_name}")
-                    break
-                except Exception as e:
-                    retry_count += 1
-                    if retry_count >= max_retries:
-                        if required:
-                            print(f"Failed to get {param_name} after {max_retries} attempts: {str(e)}")
-                            sys.exit(1)
-                        else:
-                            print(f"Failed to get optional parameter {param_name}: {str(e)}")
-                            return ""
-                    print(f"Error getting {param_name}: {str(e)}. Retrying in 5 seconds...")
-                    time.sleep(5)
-
-            return param_value
-
-        # Get required parameters
-        bot_token = get_parameter_with_retry('/discord/bot_token', required=True)
-        topgg_token = get_parameter_with_retry('/discord/topgg_token', required=True)
-
-        # Get optional parameters
-        sentry_dsn = get_parameter_with_retry('/discord/sentry_dsn', required=False)
-        youtube_api_key = get_parameter_with_retry('/discord/youtube_api_key', required=False)
-        proxyscrape_api_key = get_parameter_with_retry('/discord/proxyscrape_api_key', required=False)
-        dev_guild_ids = get_parameter_with_retry('/discord/dev_guild_ids', required=False)
-        env = get_parameter_with_retry('/discord/env', required=False) or "PROD"
-
-        # Get AWS region
-        aws_region = boto3.session.Session().region_name
+        # Get region from instance metadata
+        aws_region = get_instance_region()
         print(f"Using AWS region: {aws_region}")
+
+        # Initialize clients with explicit region
+        secrets_client = boto3.client('secretsmanager', region_name=aws_region)
+        ssm = boto3.client('ssm', region_name=aws_region)
+
+        # Get secrets from Secrets Manager
+        max_retries = 3
+        secrets = None
+        for attempt in range(max_retries):
+            try:
+                print(f"Fetching secrets from Secrets Manager (attempt {attempt + 1}/{max_retries})...")
+                response = secrets_client.get_secret_value(SecretId='discord-bot/secrets')
+                secrets = json.loads(response['SecretString'])
+                print("Successfully retrieved secrets")
+                break
+            except Exception as e:
+                if attempt >= max_retries - 1:
+                    print(f"Failed to get secrets after {max_retries} attempts: {str(e)}")
+                    sys.exit(1)
+                print(f"Error: {str(e)}. Retrying in 5 seconds...")
+                time.sleep(5)
+
+        # Function to get SSM parameter
+        def get_ssm_param(param_name, default=""):
+            try:
+                response = ssm.get_parameter(Name=param_name)
+                return response['Parameter']['Value']
+            except Exception as e:
+                print(f"Could not get {param_name}: {str(e)}, using default")
+                return default
+
+        # Get non-secret config from SSM
+        dev_guild_ids = get_ssm_param('/discord/dev_guild_ids', '')
+        env = get_ssm_param('/discord/env', 'PROD')
 
         # Write to .env file
         env_file_path = '/opt/discord-bot/.env'
-        try:
-            with open(env_file_path, 'w') as f:
-                # Required parameters
-                f.write(f'BOT_TOKEN={bot_token}\\n')
-                f.write(f'TOPGG_TOKEN={topgg_token}\\n')
-                f.write(f'TOPGG_BOT_ID=1334225517603192902\\n')
-                f.write(f'AWS_REGION={aws_region}\\n')
+        with open(env_file_path, 'w') as f:
+            f.write(f"BOT_TOKEN={secrets.get('bot_token', '')}\\n")
+            f.write(f"TOPGG_TOKEN={secrets.get('topgg_token', '')}\\n")
+            f.write(f"TOPGG_BOT_ID=1334225517603192902\\n")
+            f.write(f"AWS_REGION={aws_region}\\n")
+            f.write(f"SENTRY_DSN={secrets.get('sentry_dsn', '')}\\n")
+            f.write(f"YOUTUBE_API_KEY={secrets.get('youtube_api_key', '')}\\n")
+            f.write(f"PROXYSCRAPE_API_KEY={secrets.get('proxyscrape_api_key', '')}\\n")
+            f.write(f"GUILD_IDS={dev_guild_ids}\\n")
+            f.write(f"ENV={env}\\n")
 
-                # Optional parameters
-                f.write(f'SENTRY_DSN={sentry_dsn}\\n')
-                f.write(f'YOUTUBE_API_KEY={youtube_api_key}\\n')
-                f.write(f'PROXYSCRAPE_API_KEY={proxyscrape_api_key}\\n')
-                f.write(f'GUILD_IDS={dev_guild_ids}\\n')
-                f.write(f'ENV={env}\\n')
-
-            print(f"Environment file generated successfully at {env_file_path}")
-        except Exception as e:
-            print(f"Error writing environment file: {str(e)}")
-            sys.exit(1)
+        print(f"Environment file generated successfully at {env_file_path}")
 
     except Exception as e:
         print(f"Unexpected error: {str(e)}")
@@ -248,9 +206,9 @@ if __name__ == "__main__":
     main()
 EOL
 
-# Make the script executable and run it
+# Make the script executable and run it with venv
 chmod +x /opt/discord-bot/generate_env.py
-python3 /opt/discord-bot/generate_env.py
+/opt/discord-bot/venv/bin/python3 /opt/discord-bot/generate_env.py
 
 # Check if the script ran successfully
 if [ $? -ne 0 ]; then
@@ -268,7 +226,7 @@ After=network.target
 Type=simple
 User=ec2-user
 WorkingDirectory=/opt/discord-bot
-ExecStart=/usr/bin/python3 /opt/discord-bot/main.py
+ExecStart=/opt/discord-bot/venv/bin/python3 /opt/discord-bot/main.py
 Restart=always
 Environment=PYTHONUNBUFFERED=1
 
@@ -301,11 +259,6 @@ fi`),
     new cdk.CfnOutput(this, 'InstanceId', {
       description: 'EC2 Instance ID',
       value: botInstance.instanceId,
-    });
-
-    new cdk.CfnOutput(this, 'DynamoDBTableName', {
-      description: 'Name of created DynamoDB table',
-      value: voteRemindersTable.tableName,
     });
 
     new cdk.CfnOutput(this, 'PublicIP', {

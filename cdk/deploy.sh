@@ -30,10 +30,20 @@ if ! aws sts get-caller-identity &> /dev/null; then
     exit 1
 fi
 
+# Pre-requisite: Secrets must exist in AWS Secrets Manager
+# Secrets are NOT stored in .env or CDK - they must be managed directly in AWS
+echo "Checking if discord-bot/secrets exists in AWS Secrets Manager..."
+if ! aws secretsmanager describe-secret --secret-id discord-bot/secrets &> /dev/null; then
+    echo "Error: Secret 'discord-bot/secrets' not found in AWS Secrets Manager."
+    echo "Create it with: aws secretsmanager create-secret --name discord-bot/secrets --secret-string '{\"bot_token\":\"...\",\"sentry_dsn\":\"...\",\"youtube_api_key\":\"...\",\"proxyscrape_api_key\":\"...\"}'"
+    exit 1
+fi
+echo "Secret found."
+
 # Check if .env file exists in the project root
 if [ ! -f "../.env" ]; then
     echo "Error: .env file not found in the project root."
-    echo "Please create a .env file with the required parameters."
+    echo "Please create a .env file with the required parameters (see cdk/.env.example)."
     exit 1
 fi
 
@@ -41,20 +51,6 @@ fi
 if ! grep -q "KEY_PAIR" "../.env"; then
     echo "Error: KEY_PAIR is not set in the .env file."
     echo "Please add KEY_PAIR=your_key_pair_name to your .env file."
-    exit 1
-fi
-
-# Check if BOT_TOKEN is set in .env
-if ! grep -q "BOT_TOKEN" "../.env"; then
-    echo "Error: BOT_TOKEN is not set in the .env file."
-    echo "Please add BOT_TOKEN=your_discord_bot_token to your .env file."
-    exit 1
-fi
-
-# Check if TOPGG_TOKEN is set in .env
-if ! grep -q "TOPGG_TOKEN" "../.env"; then
-    echo "Error: TOPGG_TOKEN is not set in the .env file."
-    echo "Please add TOPGG_TOKEN=your_topgg_token to your .env file."
     exit 1
 fi
 
